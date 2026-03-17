@@ -8,6 +8,8 @@ import SurfaceCard from "@/components/SurfaceCard";
 import { createClient } from "@/lib/supabase-browser";
 
 type SettleResult = {
+  source: "ai" | "fallback";
+  aiErrorMessage: string | null;
   summaryDate: string;
   gardenChangeText: string;
   aiObservationText: string;
@@ -77,6 +79,8 @@ export default function SettlePage() {
       }
 
       setResult({
+        source: data.source,
+        aiErrorMessage: data.aiErrorMessage ?? null,
         summaryDate: data.summary.summary_date,
         gardenChangeText: data.summary.garden_change_text,
         aiObservationText: data.summary.ai_observation_text,
@@ -152,7 +156,7 @@ export default function SettlePage() {
             disabled={loading}
             className="primary-button rounded-full px-6 py-3 text-sm font-medium disabled:opacity-60"
           >
-            {loading ? "结算中..." : "执行今日 AI 结算"}
+            {loading ? "结算中..." : "执行今日结算"}
           </button>
         </SurfaceCard>
 
@@ -164,7 +168,15 @@ export default function SettlePage() {
 
         {result ? (
           <SurfaceCard className="mt-6 p-6">
-            <h2 className="text-lg font-medium text-white">AI 结算成功</h2>
+            <h2 className="text-lg font-medium text-white">
+              {result.source === "ai" ? "AI 结算成功" : "已使用本地模板结算"}
+            </h2>
+
+            {result.source === "fallback" && result.aiErrorMessage ? (
+              <div className="mt-4 rounded-2xl border border-yellow-900/60 bg-yellow-950/30 p-4 text-sm text-yellow-200">
+                AI 未成功生成，本次使用了本地模板。原因：{result.aiErrorMessage}
+              </div>
+            ) : null}
 
             <div className="mt-5 space-y-3 rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
               <p className="text-sm">

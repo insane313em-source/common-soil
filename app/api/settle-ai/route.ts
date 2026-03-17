@@ -4,6 +4,19 @@ import { openai } from "@/lib/openai";
 import { buildSettlementPrompt } from "@/lib/settlement-prompt";
 import { buildDailySummary } from "@/lib/helpers";
 
+function extractJson(raw: string) {
+  const trimmed = raw.trim();
+
+  if (trimmed.startsWith("```")) {
+    const match = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    if (match?.[1]) {
+      return match[1].trim();
+    }
+  }
+
+  return trimmed;
+}
+
 export async function POST() {
   try {
     const { supabase, garden } = await getCurrentGardenOrThrow();
@@ -41,12 +54,19 @@ export async function POST() {
 
     if (existingSummary) {
       return NextResponse.json(
-        { error: "当前庭院今天已经执行过结算了" },
+        {
+          error: "当前庭院今天已经执行过结算了",
+          source: "already_exists",
+          summary: existingSummary,
+        },
         { status: 400 }
       );
     }
 
-    let summaryResult;
+    let summaryResult: Record<string, unknown>;
+    let source: "ai" | "fallback" = "ai";
+    let rawAiText: string | null = null;
+    let aiErrorMessage: string | null = null;
 
     try {
       const prompt = buildSettlementPrompt(
@@ -67,7 +87,8 @@ export async function POST() {
         messages: [
           {
             role: "system",
-            content: "你是一个只输出 JSON 的关系庭院结算引擎。",
+            content:
+              "你是一个只输出 JSON 的关系庭院结算引擎。禁止输出 markdown 代码块，禁止输出解释文字，直接输出 JSON 对象。",
           },
           {
             role: "user",
@@ -78,13 +99,24 @@ export async function POST() {
       });
 
       const raw = response.choices[0]?.message?.content?.trim();
+      rawAiText = raw ?? null;
 
       if (!raw) {
         throw new Error("AI 返回内容为空");
       }
 
-      summaryResult = JSON.parse(raw);
-    } catch {
+      const jsonText = extractJson(raw);
+      summaryResult = JSON.parse(jsonText);
+
+      console.log("[settle-ai] AI raw response:", raw);
+      console.log("[settle-ai] source=ai");
+    } catch (error) {
+      source = "fallback";
+      aiErrorMessage =
+        error instanceof Error ? error.message : "AI 调用失败";
+
+      console.error("[settle-ai] AI failed, fallback used:", error);
+
       summaryResult = buildDailySummary({
         moodA: entryA.mood,
         moodB: entryB.mood,
@@ -109,11 +141,16 @@ export async function POST() {
 
     return NextResponse.json({
       success: true,
+      source,
+      aiErrorMessage,
+      rawAiText,
       summary: insertedSummary,
     });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "AI 结算时发生未知错误";
+
+    console.error("[settle-ai] fatal:", error);
 
     return NextResponse.json({ error: message }, { status: 500 });
   }
