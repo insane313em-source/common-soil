@@ -1,41 +1,44 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
 import PageContainer from "@/components/PageContainer";
 import SectionTitle from "@/components/SectionTitle";
 import SurfaceCard from "@/components/SurfaceCard";
 import { createClient } from "@/lib/supabase-browser";
 
-export default function LoginPage() {
+export default function ForgotPasswordPage() {
   const supabase = createClient();
-  const router = useRouter();
 
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleLogin(e: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setMessage("");
     setErrorMessage("");
 
     try {
       setLoading(true);
 
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const redirectTo =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/reset-password`
+          : undefined;
+
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo,
       });
 
       if (error) {
         throw new Error(error.message);
       }
 
-      router.push("/home");
-      router.refresh();
+      setMessage("重置密码邮件已发送，请检查邮箱。");
+      setEmail("");
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "登录失败");
+      setErrorMessage(error instanceof Error ? error.message : "发送失败");
     } finally {
       setLoading(false);
     }
@@ -46,14 +49,14 @@ export default function LoginPage() {
       <div className="mx-auto max-w-xl">
         <SurfaceCard className="soft-grid rounded-[32px] p-8 sm:p-10">
           <SectionTitle
-            eyebrow="Login"
-            title="登录"
-            description="登录你的共土账号，回到你正在共同养成的那片地方。"
+            eyebrow="Forgot Password"
+            title="忘记密码"
+            description="输入你的账号邮箱，我们会向你发送一封用于重置密码的邮件。"
           />
         </SurfaceCard>
 
         <SurfaceCard className="mt-8 p-6 sm:p-8">
-          <form onSubmit={handleLogin}>
+          <form onSubmit={handleSubmit}>
             <label className="mb-2 block text-sm text-zinc-300">邮箱</label>
             <input
               type="email"
@@ -62,32 +65,21 @@ export default function LoginPage() {
               className="input-shell w-full rounded-2xl px-4 py-3"
             />
 
-            <label className="mt-6 mb-2 block text-sm text-zinc-300">密码</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="input-shell w-full rounded-2xl px-4 py-3"
-            />
-
-            <div className="mt-4">
-              <a
-                href="/forgot-password"
-                className="text-sm text-zinc-400 transition hover:text-white"
-              >
-                忘记密码？
-              </a>
-            </div>
-
             <button
               type="submit"
               disabled={loading}
               className="primary-button mt-6 rounded-full px-6 py-3 text-sm font-medium disabled:opacity-60"
             >
-              {loading ? "登录中..." : "登录"}
+              {loading ? "发送中..." : "发送重置邮件"}
             </button>
           </form>
         </SurfaceCard>
+
+        {message ? (
+          <div className="mt-6 rounded-2xl border border-emerald-900/60 bg-emerald-950/30 p-5 text-emerald-200">
+            {message}
+          </div>
+        ) : null}
 
         {errorMessage ? (
           <div className="mt-6 rounded-2xl border border-red-900/60 bg-red-950/40 p-5 text-red-200">

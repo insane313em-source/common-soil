@@ -10,8 +10,8 @@ export default function PageContainer({
   className = "",
 }: PageContainerProps) {
   return (
-    <main className={`min-h-screen bg-zinc-950 text-white ${className}`}>
-      <div className="mx-auto max-w-6xl px-6 py-12">{children}</div>
+    <main className={`min-h-screen ${className}`}>
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">{children}</div>
     </main>
   );
 }

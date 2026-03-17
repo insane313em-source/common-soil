@@ -3,15 +3,19 @@
 import { FormEvent, useEffect, useState } from "react";
 import PageContainer from "@/components/PageContainer";
 import EmptyStateCard from "@/components/EmptyStateCard";
+import SectionTitle from "@/components/SectionTitle";
+import SurfaceCard from "@/components/SurfaceCard";
 import { createClient } from "@/lib/supabase-browser";
 import { joinKeywords } from "@/lib/helpers";
 
-type SubmitResult = {
-  gardenId: string;
+type EntryRecord = {
+  id: string;
+  garden_id: string;
+  user_id: string;
+  entry_date: string;
   mood: string;
   content: string;
-  keywords: string[];
-  entryDate: string;
+  keywords: string[] | null;
 };
 
 const moodOptions = [
@@ -29,7 +33,7 @@ type AccessState =
   | { status: "loading" }
   | { status: "not_logged_in" }
   | { status: "no_garden" }
-  | { status: "ready" };
+  | { status: "ready"; gardenId: string; userId: string };
 
 export default function WritePage() {
   const supabase = createClient();
@@ -39,12 +43,16 @@ export default function WritePage() {
   const [mood, setMood] = useState("平静");
   const [content, setContent] = useState("");
   const [keywordsInput, setKeywordsInput] = useState("");
+  const [todayEntry, setTodayEntry] = useState<EntryRecord | null>(null);
+  const [editing, setEditing] = useState(false);
+
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [result, setResult] = useState<SubmitResult | null>(null);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
-    async function checkAccess() {
+    async function checkAccessAndLoadEntry() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -66,17 +74,39 @@ export default function WritePage() {
         return;
       }
 
-      setAccessState({ status: "ready" });
+      const gardenId = memberRecord.garden_id;
+      setAccessState({ status: "ready", gardenId, userId: user.id });
+
+      const today = new Date().toISOString().slice(0, 10);
+
+      const { data: existingEntry } = await supabase
+        .from("daily_entries")
+        .select("*")
+        .eq("garden_id", gardenId)
+        .eq("user_id", user.id)
+        .eq("entry_date", today)
+        .maybeSingle();
+
+      const entry = (existingEntry as EntryRecord | null) ?? null;
+      setTodayEntry(entry);
+
+      if (entry) {
+        setMood(entry.mood);
+        setContent(entry.content);
+        setKeywordsInput(entry.keywords?.join(", ") ?? "");
+      }
     }
 
-    checkAccess();
+    checkAccessAndLoadEntry();
   }, [supabase]);
 
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleCreate(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
+    if (accessState.status !== "ready") return;
+
     setErrorMessage("");
-    setResult(null);
+    setMessage("");
 
     const finalContent = content.trim();
     const finalKeywords = joinKeywords(keywordsInput);
@@ -90,57 +120,11 @@ export default function WritePage() {
     try {
       setLoading(true);
 
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError) {
-        throw new Error(userError.message);
-      }
-
-      if (!user) {
-        throw new Error("请先登录后再写记录");
-      }
-
-      const { data: memberRecord, error: memberError } = await supabase
-        .from("garden_members")
-        .select("*")
-        .eq("user_id", user.id)
-        .limit(1)
-        .maybeSingle();
-
-      if (memberError) {
-        throw new Error(memberError.message);
-      }
-
-      if (!memberRecord) {
-        throw new Error("你还没有加入任何共土");
-      }
-
-      const gardenId = memberRecord.garden_id;
-
-      const { data: existingEntry, error: existingError } = await supabase
-        .from("daily_entries")
-        .select("*")
-        .eq("garden_id", gardenId)
-        .eq("user_id", user.id)
-        .eq("entry_date", today)
-        .maybeSingle();
-
-      if (existingError) {
-        throw new Error(existingError.message);
-      }
-
-      if (existingEntry) {
-        throw new Error("你今天已经提交过记录了");
-      }
-
       const { data: insertedEntry, error: insertError } = await supabase
         .from("daily_entries")
         .insert({
-          garden_id: gardenId,
-          user_id: user.id,
+          garden_id: accessState.gardenId,
+          user_id: accessState.userId,
           entry_date: today,
           mood,
           content: finalContent,
@@ -153,24 +137,126 @@ export default function WritePage() {
         throw new Error(insertError.message);
       }
 
-      setResult({
-        gardenId: insertedEntry.garden_id,
-        mood: insertedEntry.mood,
-        content: insertedEntry.content,
-        keywords: insertedEntry.keywords ?? [],
-        entryDate: insertedEntry.entry_date,
-      });
-
-      setMood("平静");
-      setContent("");
-      setKeywordsInput("");
+      const entry = insertedEntry as EntryRecord;
+      setTodayEntry(entry);
+      setMood(entry.mood);
+      setContent(entry.content);
+      setKeywordsInput(entry.keywords?.join(", ") ?? "");
+      setEditing(false);
+      setMessage("今天的记录已经写入共土。");
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "提交记录时发生未知错误";
-      setErrorMessage(message);
+      setErrorMessage(
+        error instanceof Error ? error.message : "提交记录时发生未知错误"
+      );
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleUpdate(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    if (!todayEntry) return;
+
+    setErrorMessage("");
+    setMessage("");
+
+    const finalContent = content.trim();
+    const finalKeywords = joinKeywords(keywordsInput);
+
+    if (!finalContent) {
+      setErrorMessage("今日记录不能为空");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const { data: updatedEntry, error: updateError } = await supabase
+        .from("daily_entries")
+        .update({
+          mood,
+          content: finalContent,
+          keywords: finalKeywords,
+        })
+        .eq("id", todayEntry.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        throw new Error(updateError.message);
+      }
+
+      const entry = updatedEntry as EntryRecord;
+      setTodayEntry(entry);
+      setMood(entry.mood);
+      setContent(entry.content);
+      setKeywordsInput(entry.keywords?.join(", ") ?? "");
+      setEditing(false);
+      setMessage("今天的记录已更新。");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "更新记录时发生未知错误"
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!todayEntry) return;
+
+    const confirmed = window.confirm("删除后，今天的记录会消失，并且你可以重新填写。确认删除吗？");
+    if (!confirmed) return;
+
+    setErrorMessage("");
+    setMessage("");
+
+    try {
+      setDeleting(true);
+
+      const { error } = await supabase
+        .from("daily_entries")
+        .delete()
+        .eq("id", todayEntry.id);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      setTodayEntry(null);
+      setMood("平静");
+      setContent("");
+      setKeywordsInput("");
+      setEditing(false);
+      setMessage("今天的记录已删除，现在可以重新填写。");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "删除记录时发生未知错误"
+      );
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  function startEdit() {
+    if (!todayEntry) return;
+    setMood(todayEntry.mood);
+    setContent(todayEntry.content);
+    setKeywordsInput(todayEntry.keywords?.join(", ") ?? "");
+    setEditing(true);
+    setMessage("");
+    setErrorMessage("");
+  }
+
+  function cancelEdit() {
+    if (!todayEntry) return;
+    setMood(todayEntry.mood);
+    setContent(todayEntry.content);
+    setKeywordsInput(todayEntry.keywords?.join(", ") ?? "");
+    setEditing(false);
+    setMessage("");
+    setErrorMessage("");
   }
 
   if (accessState.status === "loading") {
@@ -216,84 +302,176 @@ export default function WritePage() {
 
   return (
     <PageContainer>
-      <div className="mx-auto max-w-3xl">
-        <h1 className="mt-6 text-3xl font-semibold">今日记录</h1>
-        <p className="mt-3 text-zinc-400">
-          写下一点今天的情绪、近况和没有说出口的话。对方不会直接看见原文。
-        </p>
-
-        <form
-          onSubmit={handleSubmit}
-          className="mt-10 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6"
-        >
-          <label className="mb-2 block text-sm text-zinc-300">今日情绪</label>
-          <select
-            value={mood}
-            onChange={(e) => setMood(e.target.value)}
-            className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none"
-          >
-            {moodOptions.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-
-          <label className="mt-6 mb-2 block text-sm text-zinc-300">今日记录</label>
-          <textarea
-            rows={8}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder="写下一点今天的近况、心情或对某件事的看法……"
-            className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none placeholder:text-zinc-500"
+      <div className="mx-auto max-w-4xl">
+        <SurfaceCard className="soft-grid rounded-[32px] p-8 sm:p-10">
+          <SectionTitle
+            eyebrow="Daily Entry"
+            title="今日记录"
+            description="写下一点今天的情绪、近况和没有说出口的话。对方不会直接看见原文。"
           />
+        </SurfaceCard>
 
-          <label className="mt-6 mb-2 block text-sm text-zinc-300">今日关键词</label>
-          <input
-            type="text"
-            value={keywordsInput}
-            onChange={(e) => setKeywordsInput(e.target.value)}
-            placeholder="例如：工作, 雨天, 惦记"
-            className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none placeholder:text-zinc-500"
-          />
+        {!todayEntry ? (
+          <SurfaceCard className="mt-8 p-6">
+            <form onSubmit={handleCreate}>
+              <label className="mb-2 block text-sm text-zinc-300">今日情绪</label>
+              <select
+                value={mood}
+                onChange={(e) => setMood(e.target.value)}
+                className="input-shell w-full rounded-2xl px-4 py-3"
+              >
+                {moodOptions.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="mt-6 rounded-full bg-white px-6 py-3 text-sm font-medium text-black hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {loading ? "提交中..." : "提交今天的记录"}
-          </button>
-        </form>
+              <label className="mt-6 mb-2 block text-sm text-zinc-300">今日记录</label>
+              <textarea
+                rows={8}
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder="写下一点今天的近况、心情或对某件事的看法……"
+                className="input-shell w-full rounded-2xl px-4 py-3 placeholder:text-zinc-500"
+              />
+
+              <label className="mt-6 mb-2 block text-sm text-zinc-300">今日关键词</label>
+              <input
+                type="text"
+                value={keywordsInput}
+                onChange={(e) => setKeywordsInput(e.target.value)}
+                placeholder="例如：工作, 雨天, 惦记"
+                className="input-shell w-full rounded-2xl px-4 py-3 placeholder:text-zinc-500"
+              />
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="primary-button mt-6 rounded-full px-6 py-3 text-sm font-medium disabled:opacity-60"
+              >
+                {loading ? "提交中..." : "提交今天的记录"}
+              </button>
+            </form>
+          </SurfaceCard>
+        ) : (
+          <>
+            <SurfaceCard className="mt-8 p-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">
+                    Today's Entry
+                  </p>
+                  <h2 className="mt-2 text-xl font-medium text-white">
+                    你今天已经写过记录了
+                  </h2>
+                  <p className="mt-3 text-sm leading-7 text-zinc-400">
+                    你可以查看、修改或删除今天的记录。
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  {!editing ? (
+                    <button
+                      onClick={startEdit}
+                      className="secondary-button rounded-full px-5 py-3 text-sm"
+                    >
+                      编辑记录
+                    </button>
+                  ) : (
+                    <button
+                      onClick={cancelEdit}
+                      className="secondary-button rounded-full px-5 py-3 text-sm"
+                    >
+                      取消编辑
+                    </button>
+                  )}
+
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="rounded-full border border-red-900/60 bg-red-950/30 px-5 py-3 text-sm text-red-200 transition hover:bg-red-950/45 disabled:opacity-60"
+                  >
+                    {deleting ? "删除中..." : "删除记录"}
+                  </button>
+                </div>
+              </div>
+            </SurfaceCard>
+
+            {!editing ? (
+              <SurfaceCard className="mt-6 p-6">
+                <div className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+                  <p className="text-sm">
+                    <span className="text-zinc-500">日期：</span> {todayEntry.entry_date}
+                  </p>
+                  <p className="text-sm">
+                    <span className="text-zinc-500">情绪：</span> {todayEntry.mood}
+                  </p>
+                  <p className="text-sm">
+                    <span className="text-zinc-500">关键词：</span>{" "}
+                    {todayEntry.keywords && todayEntry.keywords.length > 0
+                      ? todayEntry.keywords.join(", ")
+                      : "无"}
+                  </p>
+                  <p className="text-sm whitespace-pre-wrap leading-7 text-zinc-200">
+                    <span className="text-zinc-500">内容：</span> {todayEntry.content}
+                  </p>
+                </div>
+              </SurfaceCard>
+            ) : (
+              <SurfaceCard className="mt-6 p-6">
+                <form onSubmit={handleUpdate}>
+                  <label className="mb-2 block text-sm text-zinc-300">今日情绪</label>
+                  <select
+                    value={mood}
+                    onChange={(e) => setMood(e.target.value)}
+                    className="input-shell w-full rounded-2xl px-4 py-3"
+                  >
+                    {moodOptions.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+
+                  <label className="mt-6 mb-2 block text-sm text-zinc-300">今日记录</label>
+                  <textarea
+                    rows={8}
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    className="input-shell w-full rounded-2xl px-4 py-3"
+                  />
+
+                  <label className="mt-6 mb-2 block text-sm text-zinc-300">今日关键词</label>
+                  <input
+                    type="text"
+                    value={keywordsInput}
+                    onChange={(e) => setKeywordsInput(e.target.value)}
+                    className="input-shell w-full rounded-2xl px-4 py-3"
+                  />
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="primary-button mt-6 rounded-full px-6 py-3 text-sm font-medium disabled:opacity-60"
+                  >
+                    {loading ? "保存中..." : "保存修改"}
+                  </button>
+                </form>
+              </SurfaceCard>
+            )}
+          </>
+        )}
 
         {errorMessage ? (
-          <div className="mt-6 rounded-2xl border border-red-800 bg-red-950/40 p-5 text-red-200">
-            <p className="text-sm">提交失败：{errorMessage}</p>
+          <div className="mt-6 rounded-2xl border border-red-900/60 bg-red-950/40 p-5 text-red-200">
+            {errorMessage}
           </div>
         ) : null}
 
-        {result ? (
-          <div className="mt-6 rounded-2xl border border-emerald-800 bg-emerald-950/30 p-6 text-emerald-100">
-            <h2 className="text-lg font-medium">记录提交成功</h2>
-            <p className="mt-3 text-sm text-emerald-200/90">
-              今天的记录已经写入共土。
-            </p>
-
-            <div className="mt-4 space-y-3 rounded-xl border border-emerald-800/70 bg-zinc-950 p-4">
-              <p className="text-sm">
-                <span className="text-emerald-400">日期：</span> {result.entryDate}
-              </p>
-              <p className="text-sm">
-                <span className="text-emerald-400">情绪：</span> {result.mood}
-              </p>
-              <p className="text-sm">
-                <span className="text-emerald-400">关键词：</span>{" "}
-                {result.keywords.length > 0 ? result.keywords.join(", ") : "无"}
-              </p>
-              <p className="text-sm whitespace-pre-wrap leading-7 text-zinc-200">
-                <span className="text-emerald-400">内容：</span> {result.content}
-              </p>
-            </div>
+        {message ? (
+          <div className="mt-6 rounded-2xl border border-emerald-900/60 bg-emerald-950/30 p-5 text-emerald-200">
+            {message}
           </div>
         ) : null}
       </div>

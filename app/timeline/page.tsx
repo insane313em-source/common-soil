@@ -1,192 +1,230 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import PageContainer from "@/components/PageContainer";
 import EmptyStateCard from "@/components/EmptyStateCard";
-import { createClient } from "@/lib/supabase-browser";
+import SectionTitle from "@/components/SectionTitle";
+import SurfaceCard from "@/components/SurfaceCard";
+import { getCurrentGardenOrThrow } from "@/lib/garden-server";
 
-type SettleResult = {
-  summaryDate: string;
-  gardenChangeText: string;
-  aiObservationText: string;
-  symbolicSuggestion: string;
-  relationshipWeather: string;
-  sharedTheme: string;
-  gentleAction: string;
+type DailySummaryRecord = {
+  id: string;
+  summary_date: string;
+  garden_change_type: string | null;
+  garden_change_text: string | null;
+  ai_observation_text: string | null;
+  symbolic_suggestion: string | null;
+  relationship_weather: string | null;
+  shared_theme: string | null;
+  gentle_action: string | null;
 };
 
-type AccessState =
-  | { status: "loading" }
-  | { status: "not_logged_in" }
-  | { status: "no_garden" }
-  | { status: "ready" };
+type SearchParams = Promise<{
+  month?: string;
+  type?: string;
+}>;
 
-export default function SettlePage() {
-  const supabase = createClient();
+export default async function TimelinePage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
+  try {
+    const params = await searchParams;
+    const selectedMonth = params.month ?? "";
+    const selectedType = params.type ?? "";
 
-  const [accessState, setAccessState] = useState<AccessState>({ status: "loading" });
-  const [loading, setLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [result, setResult] = useState<SettleResult | null>(null);
+    const { supabase, garden } = await getCurrentGardenOrThrow();
 
-  useEffect(() => {
-    async function checkAccess() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    let query = supabase
+      .from("daily_summaries")
+      .select("*")
+      .eq("garden_id", garden.id)
+      .order("summary_date", { ascending: false });
 
-      if (!user) {
-        setAccessState({ status: "not_logged_in" });
-        return;
-      }
-
-      const { data: memberRecord, error } = await supabase
-        .from("garden_members")
-        .select("*")
-        .eq("user_id", user.id)
-        .limit(1)
-        .maybeSingle();
-
-      if (error || !memberRecord) {
-        setAccessState({ status: "no_garden" });
-        return;
-      }
-
-      setAccessState({ status: "ready" });
+    if (selectedMonth) {
+      query = query.gte("summary_date", `${selectedMonth}-01`);
+      query = query.lt("summary_date", `${selectedMonth}-32`);
     }
 
-    checkAccess();
-  }, [supabase]);
-
-  async function handleSettle() {
-    setLoading(true);
-    setErrorMessage("");
-    setResult(null);
-
-    try {
-      const response = await fetch("/api/settle-ai", {
-        method: "POST",
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "结算失败");
-      }
-
-      setResult({
-        summaryDate: data.summary.summary_date,
-        gardenChangeText: data.summary.garden_change_text,
-        aiObservationText: data.summary.ai_observation_text,
-        symbolicSuggestion: data.summary.symbolic_suggestion,
-        relationshipWeather: data.summary.relationship_weather,
-        sharedTheme: data.summary.shared_theme,
-        gentleAction: data.summary.gentle_action,
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "执行结算时发生未知错误";
-      setErrorMessage(message);
-    } finally {
-      setLoading(false);
+    if (selectedType) {
+      query = query.eq("garden_change_type", selectedType);
     }
-  }
 
-  if (accessState.status === "loading") {
+    const { data } = await query;
+
+    const summaries = (data ?? []) as DailySummaryRecord[];
+
+    const { data: allData } = await supabase
+      .from("daily_summaries")
+      .select("summary_date, garden_change_type")
+      .eq("garden_id", garden.id)
+      .order("summary_date", { ascending: false });
+
+    const months = Array.from(
+      new Set((allData ?? []).map((item) => item.summary_date.slice(0, 7)))
+    );
+
+    const types = Array.from(
+      new Set(
+        (allData ?? [])
+          .map((item) => item.garden_change_type)
+          .filter(Boolean)
+      )
+    ) as string[];
+
     return (
       <PageContainer>
-        <EmptyStateCard
-          title="正在确认你的状态"
-          description="我们正在检查你是否已经登录，以及是否已经加入某片共土。"
-        />
-      </PageContainer>
-    );
-  }
+        <div className="mx-auto max-w-5xl">
+          <SurfaceCard className="soft-grid rounded-[32px] p-8 sm:p-10">
+            <SectionTitle
+              eyebrow="Growth Timeline"
+              title="成长时间线"
+              description="这里只记录当前共土发生过的变化，不展示双方原文。"
+            />
+          </SurfaceCard>
 
-  if (accessState.status === "not_logged_in") {
-    return (
-      <PageContainer>
-        <EmptyStateCard
-          title="你还没有登录"
-          description="登录后，你才能对自己所属的共土执行每日结算。"
-          primaryHref="/login"
-          primaryLabel="去登录"
-          secondaryHref="/signup"
-          secondaryLabel="去注册"
-        />
-      </PageContainer>
-    );
-  }
+          <SurfaceCard className="mt-8 p-6">
+            <form className="grid gap-4 md:grid-cols-3">
+              <div>
+                <label className="mb-2 block text-sm text-zinc-300">按月份筛选</label>
+                <select
+                  name="month"
+                  defaultValue={selectedMonth}
+                  className="input-shell w-full rounded-2xl px-4 py-3"
+                >
+                  <option value="">全部月份</option>
+                  {months.map((month) => (
+                    <option key={month} value={month}>
+                      {month}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-  if (accessState.status === "no_garden") {
-    return (
-      <PageContainer>
-        <EmptyStateCard
-          title="你还没有加入任何共土"
-          description="先创建一片共土，或者输入邀请码加入已有共土，之后才能开始每日结算。"
-          primaryHref="/create"
-          primaryLabel="创建共土"
-          secondaryHref="/join"
-          secondaryLabel="加入共土"
-        />
-      </PageContainer>
-    );
-  }
+              <div>
+                <label className="mb-2 block text-sm text-zinc-300">按变化类型筛选</label>
+                <select
+                  name="type"
+                  defaultValue={selectedType}
+                  className="input-shell w-full rounded-2xl px-4 py-3"
+                >
+                  <option value="">全部类型</option>
+                  {types.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-  return (
-    <PageContainer>
-      <div className="mx-auto max-w-3xl">
-        <h1 className="text-3xl font-semibold">每日结算</h1>
-        <p className="mt-3 text-zinc-400">
-          这里只会对当前登录用户所属共土执行当天结算。
-        </p>
+              <div className="flex items-end gap-3">
+                <button
+                  type="submit"
+                  className="primary-button rounded-full px-6 py-3 text-sm font-medium"
+                >
+                  应用筛选
+                </button>
+                <a
+                  href="/timeline"
+                  className="secondary-button rounded-full px-6 py-3 text-sm"
+                >
+                  清空
+                </a>
+              </div>
+            </form>
+          </SurfaceCard>
 
-        <div className="mt-8 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6">
-          <button
-            onClick={handleSettle}
-            disabled={loading}
-            className="rounded-full bg-white px-6 py-3 text-sm font-medium text-black hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {loading ? "结算中..." : "执行今日 AI 结算"}
-          </button>
+          <div className="mt-8 space-y-4">
+            {summaries.length > 0 ? (
+              summaries.map((item) => (
+                <SurfaceCard key={item.id} className="p-6">
+                  <p className="text-sm text-zinc-500">{item.summary_date}</p>
+                  <h2 className="mt-3 text-xl font-medium text-white">
+                    {item.garden_change_text}
+                  </h2>
+                  <p className="mt-2 text-xs uppercase tracking-[0.2em] text-zinc-600">
+                    {item.garden_change_type ?? "unknown_change"}
+                  </p>
+                  <p className="mt-4 leading-7 text-zinc-400">
+                    {item.ai_observation_text}
+                  </p>
+
+                  <div className="mt-5 grid gap-3 md:grid-cols-2">
+                    <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                        关系气候
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-zinc-300">
+                        {item.relationship_weather ?? "暂无"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                        共振主题
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-zinc-300">
+                        {item.shared_theme ?? "暂无"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                        隐喻建议
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-zinc-300">
+                        {item.symbolic_suggestion ?? "暂无"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                        轻动作建议
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-zinc-300">
+                        {item.gentle_action ?? "暂无"}
+                      </p>
+                    </div>
+                  </div>
+                </SurfaceCard>
+              ))
+            ) : (
+              <SurfaceCard className="p-6 text-zinc-400">
+                当前筛选条件下还没有结算记录。
+              </SurfaceCard>
+            )}
+          </div>
         </div>
+      </PageContainer>
+    );
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "暂时无法读取时间线";
 
-        {errorMessage ? (
-          <div className="mt-6 rounded-2xl border border-red-800 bg-red-950/40 p-5 text-red-200">
-            <p className="text-sm">结算失败：{errorMessage}</p>
-          </div>
-        ) : null}
+    const isLoginError = message.includes("请先登录");
+    const isNoGardenError = message.includes("你还没有加入任何庭院");
 
-        {result ? (
-          <div className="mt-6 rounded-2xl border border-emerald-800 bg-emerald-950/30 p-6 text-emerald-100">
-            <h2 className="text-lg font-medium">AI 结算成功</h2>
-
-            <div className="mt-4 space-y-3 rounded-xl border border-emerald-800/70 bg-zinc-950 p-4">
-              <p className="text-sm">
-                <span className="text-emerald-400">日期：</span> {result.summaryDate}
-              </p>
-              <p className="text-sm">
-                <span className="text-emerald-400">共土变化：</span> {result.gardenChangeText}
-              </p>
-              <p className="text-sm">
-                <span className="text-emerald-400">观察短句：</span> {result.aiObservationText}
-              </p>
-              <p className="text-sm">
-                <span className="text-emerald-400">关系气候：</span> {result.relationshipWeather}
-              </p>
-              <p className="text-sm">
-                <span className="text-emerald-400">共振主题：</span> {result.sharedTheme}
-              </p>
-              <p className="text-sm">
-                <span className="text-emerald-400">隐喻建议：</span> {result.symbolicSuggestion}
-              </p>
-              <p className="text-sm">
-                <span className="text-emerald-400">轻动作建议：</span> {result.gentleAction}
-              </p>
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </PageContainer>
-  );
+    return (
+      <PageContainer>
+        <EmptyStateCard
+          title={
+            isLoginError
+              ? "你还没有登录"
+              : isNoGardenError
+              ? "你还没有加入任何共土"
+              : "时间线暂不可用"
+          }
+          description={
+            isLoginError
+              ? "登录后，你才能查看自己所属共土的成长时间线。"
+              : isNoGardenError
+              ? "你已经登录，但还没有进入任何共土。先创建或加入一片共土，这里才会开始积累共同的时间痕迹。"
+              : message
+          }
+          primaryHref={isLoginError ? "/login" : "/create"}
+          primaryLabel={isLoginError ? "去登录" : "创建共土"}
+          secondaryHref={isLoginError ? "/signup" : "/join"}
+          secondaryLabel={isLoginError ? "去注册" : "加入共土"}
+        />
+      </PageContainer>
+    );
+  }
 }

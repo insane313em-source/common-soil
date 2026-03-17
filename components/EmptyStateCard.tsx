@@ -16,31 +16,40 @@ type EmptyStateCardProps = {
     secondaryLabel,
   }: EmptyStateCardProps) {
     return (
-      <div className="mx-auto max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6">
-        <h1 className="text-2xl font-semibold">{title}</h1>
-        <p className="mt-4 leading-7 text-zinc-400">{description}</p>
+      <div className="mx-auto max-w-3xl">
+        <div className="glass-panel soft-grid rounded-[28px] p-8 sm:p-10">
+          <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">
+            Common Soil
+          </p>
+          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white">
+            {title}
+          </h1>
+          <p className="mt-5 max-w-2xl text-base leading-7 text-zinc-400">
+            {description}
+          </p>
   
-        {(primaryHref || secondaryHref) && (
-          <div className="mt-6 flex flex-wrap gap-3">
-            {primaryHref && primaryLabel ? (
-              <a
-                href={primaryHref}
-                className="rounded-full bg-white px-5 py-3 text-sm font-medium text-black hover:bg-zinc-200"
-              >
-                {primaryLabel}
-              </a>
-            ) : null}
+          {(primaryHref || secondaryHref) && (
+            <div className="mt-7 flex flex-wrap gap-3">
+              {primaryHref && primaryLabel ? (
+                <a
+                  href={primaryHref}
+                  className="primary-button rounded-full px-6 py-3 text-sm font-medium"
+                >
+                  {primaryLabel}
+                </a>
+              ) : null}
   
-            {secondaryHref && secondaryLabel ? (
-              <a
-                href={secondaryHref}
-                className="rounded-full border border-zinc-700 px-5 py-3 text-sm text-white hover:bg-zinc-900"
-              >
-                {secondaryLabel}
-              </a>
-            ) : null}
-          </div>
-        )}
+              {secondaryHref && secondaryLabel ? (
+                <a
+                  href={secondaryHref}
+                  className="secondary-button rounded-full px-6 py-3 text-sm"
+                >
+                  {secondaryLabel}
+                </a>
+              ) : null}
+            </div>
+          )}
+        </div>
       </div>
     );
   }

@@ -81,7 +81,7 @@ export default function AuthStatus() {
         </a>
         <a
           href="/signup"
-          className="rounded-full border border-zinc-700 px-4 py-2 text-sm text-white transition hover:bg-zinc-900"
+          className="secondary-button rounded-full px-4 py-2 text-sm"
         >
           注册
         </a>
@@ -91,12 +91,12 @@ export default function AuthStatus() {
 
   return (
     <div className="flex items-center gap-3">
-      <div className="hidden text-sm text-zinc-400 md:block">
+      <div className="hidden max-w-[220px] truncate text-sm text-zinc-400 md:block">
         {user.email ?? "已登录用户"}
       </div>
       <button
         onClick={handleLogout}
-        className="rounded-full border border-zinc-700 px-4 py-2 text-sm text-white transition hover:bg-zinc-900"
+        className="secondary-button rounded-full px-4 py-2 text-sm"
       >
         退出登录
       </button>
