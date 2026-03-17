@@ -6,9 +6,14 @@ export default function GlobalError({
   error,
   reset,
 }: {
-  error: Error & { digest?: string };
+  error?: Error & { digest?: string };
   reset: () => void;
 }) {
+  const safeMessage =
+    error && typeof error.message === "string"
+      ? error.message
+      : "发生了一个未知错误。";
+
   return (
     <PageContainer>
       <div className="mx-auto max-w-3xl">
@@ -16,9 +21,11 @@ export default function GlobalError({
           <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">
             Application Error
           </p>
+
           <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white">
             页面暂时出了点问题
           </h1>
+
           <p className="mt-5 text-base leading-7 text-zinc-400">
             这通常是一次临时错误。你可以重新尝试，或者先返回首页继续使用。
           </p>
@@ -30,6 +37,7 @@ export default function GlobalError({
             >
               重试
             </button>
+
             <a
               href="/"
               className="secondary-button rounded-full px-6 py-3 text-sm"
@@ -39,7 +47,7 @@ export default function GlobalError({
           </div>
 
           <div className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4 text-sm text-zinc-500">
-            {error.message}
+            {safeMessage}
           </div>
         </div>
       </div>
