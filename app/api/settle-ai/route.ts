@@ -2,36 +2,74 @@ import { NextResponse } from "next/server";
 import { getCurrentGardenOrThrow } from "@/lib/garden-server";
 import { openai } from "@/lib/openai";
 import { buildDailySummary } from "@/lib/helpers";
-import {
-  buildStageOnePrompt,
-  buildStageTwoPrompt,
-  extractJson as extractStageJson,
-  normalizeSummary,
-} from "@/lib/settlement-two-stage";
-import {
-  buildCompressionPrompt,
-  buildMemoryContextForSettlement,
-  extractJson,
-} from "@/lib/settlement-memory-compression";
+import { buildSettlementPrompt } from "@/lib/settlement-prompt";
 
-type SummaryRecord = {
-  summary_date: string;
-  garden_change_text: string | null;
-  ai_observation_text: string | null;
-  relationship_weather: string | null;
-  shared_theme: string | null;
-  symbolic_suggestion: string | null;
-  gentle_action: string | null;
-  soil_state?: string | null;
-  light_state?: string | null;
-  vitality_state?: string | null;
-  connection_state?: string | null;
-};
+function extractJson(raw: string) {
+  const trimmed = raw.trim();
 
-export async function POST() {
+  if (trimmed.startsWith("```")) {
+    const match = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    if (match?.[1]) {
+      return match[1].trim();
+    }
+  }
+
+  return trimmed;
+}
+
+function normalizeSummary(input: Record<string, unknown>) {
+  return {
+    sincerity_score: Number(input.sincerity_score ?? 60),
+    connection_score: Number(input.connection_score ?? 60),
+    vitality_score: Number(input.vitality_score ?? 60),
+    resonance_score: Number(input.resonance_score ?? 60),
+
+    garden_change_type: String(input.garden_change_type ?? "quiet_garden"),
+    garden_change_text: String(input.garden_change_text ?? "今天的庭院很安静。"),
+    ai_observation_text: String(
+      input.ai_observation_text ?? "今天的状态像是放慢了，但并没有真正离开。"
+    ),
+    soil_state: String(input.soil_state ?? "回暖中"),
+    light_state: String(input.light_state ?? "微亮"),
+    vitality_state: String(input.vitality_state ?? "缓慢生长"),
+    connection_state: String(input.connection_state ?? "仍在连着"),
+    symbolic_suggestion: String(
+      input.symbolic_suggestion ?? "先别急着解释全部，把今天的疲惫轻轻放下来。"
+    ),
+    relationship_weather: String(
+      input.relationship_weather ?? "夜色偏静，风小，适合慢一点靠近。"
+    ),
+    shared_theme: String(input.shared_theme ?? "安静里的牵挂"),
+    gentle_action: String(
+      input.gentle_action ?? "发一句轻一点的问候，不急着把很多话说完。"
+    ),
+
+    reflection_for_a: String(
+      input.reflection_for_a ?? "你今天更像是在收着情绪，并不是不在意。"
+    ),
+    reflection_for_b: String(
+      input.reflection_for_b ?? "你今天的表达偏克制，但仍然能看见在意。"
+    ),
+    encouragement_for_a: String(
+      input.encouragement_for_a ?? "你依然在努力把真实状态留在这段关系里。"
+    ),
+    encouragement_for_b: String(
+      input.encouragement_for_b ?? "你今天的克制里，仍然有温柔和在意。"
+    ),
+    daily_letter: String(
+      input.daily_letter ??
+        "今天的共土没有剧烈变化，它更像是在安静地保存两个人还没有说完的部分。表面上风很小，光也不算亮，但土壤底下仍然有热度。你们并没有离开彼此，只是今天都更适合慢一点，把话留到更能承接的时候。"
+    ),
+  };
+}
+
+export async function POST(request: Request) {
   try {
     const { supabase, garden } = await getCurrentGardenOrThrow();
     const today = new Date().toISOString().slice(0, 10);
+
+    const body = await request.json().catch(() => ({}));
+    const forceRegenerate = body?.forceRegenerate === true;
 
     const { data: todayEntries, error: entriesError } = await supabase
       .from("daily_entries")
@@ -64,7 +102,7 @@ export async function POST() {
       throw new Error(existingError.message);
     }
 
-    if (existingSummary) {
+    if (existingSummary && !forceRegenerate) {
       return NextResponse.json(
         {
           error: "当前庭院今天已经执行过结算了",
@@ -75,49 +113,44 @@ export async function POST() {
       );
     }
 
-    // 读取长期记忆
-    const { data: longTermMemoryRow, error: longTermMemoryError } = await supabase
-      .from("garden_long_term_memory")
-      .select("*")
-      .eq("garden_id", garden.id)
-      .maybeSingle();
+    if (existingSummary && forceRegenerate) {
+      const currentRegenerateCount = Number(existingSummary.regenerate_count ?? 0);
 
-    if (longTermMemoryError) {
-      throw new Error(longTermMemoryError.message);
+      if (currentRegenerateCount >= 2) {
+        return NextResponse.json(
+          {
+            error: "今天的结算最多只能重新生成 2 次",
+            source: "regenerate_limit_reached",
+            summary: existingSummary,
+          },
+          { status: 400 }
+        );
+      }
     }
 
-    // 最近结算结果，给当天结算做辅助
     const { data: recentSummariesData, error: recentSummariesError } = await supabase
       .from("daily_summaries")
       .select(
-        "summary_date, garden_change_text, ai_observation_text, relationship_weather, shared_theme, symbolic_suggestion, gentle_action, soil_state, light_state, vitality_state, connection_state"
+        "summary_date, garden_change_text, ai_observation_text, relationship_weather, shared_theme"
       )
       .eq("garden_id", garden.id)
       .lt("summary_date", today)
       .order("summary_date", { ascending: false })
-      .limit(10);
+      .limit(5);
 
     if (recentSummariesError) {
       throw new Error(recentSummariesError.message);
     }
 
-    const recentSummaries = ((recentSummariesData ?? []) as SummaryRecord[]).reverse();
-
-    const memoryContext = buildMemoryContextForSettlement({
-      longTermMemoryText: longTermMemoryRow?.summary_text ?? null,
-      recentSummaries,
-    });
+    const recentSummaries = (recentSummariesData ?? []).reverse();
 
     let summaryResult: Record<string, unknown>;
     let source: "ai" | "fallback" = "ai";
     let aiErrorMessage: string | null = null;
-    let stageOneRaw: string | null = null;
-    let stageTwoRaw: string | null = null;
-    let compressionRaw: string | null = null;
+    let rawAiText: string | null = null;
 
     try {
-      // 第一阶段：读今天 + 长期记忆
-      const stageOnePrompt = buildStageOnePrompt({
+      const prompt = buildSettlementPrompt({
         todayA: {
           mood: entryA.mood,
           content: entryA.content,
@@ -128,178 +161,36 @@ export async function POST() {
           content: entryB.content,
           keywords: entryB.keywords ?? [],
         },
-        memoryContext,
-      });
-
-      const stageOneResponse = await openai.chat.completions.create({
-        model: "gpt-4.1",
-        messages: [
-          {
-            role: "system",
-            content:
-              "你是共土的第一阶段关系分析引擎。你负责读懂今天与长期记忆，不负责最终文案。禁止输出 markdown，禁止解释，只输出 JSON。",
-          },
-          {
-            role: "user",
-            content: stageOnePrompt,
-          },
-        ],
-        temperature: 0.7,
-        top_p: 0.9,
-      });
-
-      stageOneRaw = stageOneResponse.choices[0]?.message?.content?.trim() ?? null;
-
-      if (!stageOneRaw) {
-        throw new Error("第一阶段 AI 返回内容为空");
-      }
-
-      const stageOneParsed = JSON.parse(extractStageJson(stageOneRaw));
-
-      // 第二阶段：转最终结算 JSON
-      const stageTwoPrompt = buildStageTwoPrompt({
-        stageOneAnalysis: stageOneParsed,
-      });
-
-      const stageTwoResponse = await openai.chat.completions.create({
-        model: "gpt-4.1",
-        messages: [
-          {
-            role: "system",
-            content:
-              "你是共土的第二阶段转译引擎。你把内部关系理解转成最终给用户看的共土结算 JSON。禁止输出 markdown，禁止解释，只输出 JSON。",
-          },
-          {
-            role: "user",
-            content: stageTwoPrompt,
-          },
-        ],
-        temperature: 0.95,
-        top_p: 0.95,
-      });
-
-      stageTwoRaw = stageTwoResponse.choices[0]?.message?.content?.trim() ?? null;
-
-      if (!stageTwoRaw) {
-        throw new Error("第二阶段 AI 返回内容为空");
-      }
-
-      const stageTwoParsed = JSON.parse(extractStageJson(stageTwoRaw));
-      summaryResult = normalizeSummary(stageTwoParsed);
-
-      // 写入当天结算
-      const { data: insertedSummary, error: insertError } = await supabase
-        .from("daily_summaries")
-        .insert({
-          garden_id: garden.id,
-          summary_date: today,
-          ...summaryResult,
-        })
-        .select()
-        .single();
-
-      if (insertError) {
-        throw new Error(insertError.message);
-      }
-
-      // 压缩长期记忆
-      const compressionPrompt = buildCompressionPrompt({
-        previousMemoryText: longTermMemoryRow?.summary_text ?? null,
-        todayA: {
-          mood: entryA.mood,
-          content: entryA.content,
-          keywords: entryA.keywords ?? [],
-        },
-        todayB: {
-          mood: entryB.mood,
-          content: entryB.content,
-          keywords: entryB.keywords ?? [],
-        },
-        todaySummary: insertedSummary,
         recentSummaries,
       });
 
-      const compressionResponse = await openai.chat.completions.create({
-        model: "gpt-4.1",
+      const response = await openai.chat.completions.create({
+        model: "gpt-4.1-mini",
         messages: [
           {
             role: "system",
             content:
-              "你是共土的长期记忆压缩引擎。你负责把关系过程沉淀成可复用的长期记忆。禁止输出 markdown，禁止解释，只输出 JSON。",
+              "你是共土的每日结算引擎。你擅长从两个人的记录里读出细微关系气候，并输出高质量、克制、自然的 JSON。禁止输出 markdown，禁止解释。",
           },
           {
             role: "user",
-            content: compressionPrompt,
+            content: prompt,
           },
         ],
-        temperature: 0.6,
+        temperature: 0.85,
         top_p: 0.9,
       });
 
-      compressionRaw =
-        compressionResponse.choices[0]?.message?.content?.trim() ?? null;
+      rawAiText = response.choices[0]?.message?.content?.trim() ?? null;
 
-      if (!compressionRaw) {
-        throw new Error("长期记忆压缩返回内容为空");
+      if (!rawAiText) {
+        throw new Error("AI 返回内容为空");
       }
 
-      const compressionParsed = JSON.parse(extractJson(compressionRaw));
+      const parsed = JSON.parse(extractJson(rawAiText));
+      summaryResult = normalizeSummary(parsed);
 
-      const memoryPayload = {
-        garden_id: garden.id,
-        summary_text: String(
-          compressionParsed.summary_text ??
-            longTermMemoryRow?.summary_text ??
-            "这片共土仍在形成自己的长期关系记忆。"
-        ),
-        memory_json: compressionParsed.memory_json ?? null,
-        updated_at: new Date().toISOString(),
-      };
-
-      if (longTermMemoryRow) {
-        const { error: updateMemoryError } = await supabase
-          .from("garden_long_term_memory")
-          .update({
-            summary_text: memoryPayload.summary_text,
-            memory_json: memoryPayload.memory_json,
-            updated_at: memoryPayload.updated_at,
-            memory_version: (longTermMemoryRow.memory_version ?? 1) + 1,
-          })
-          .eq("garden_id", garden.id);
-
-        if (updateMemoryError) {
-          throw new Error(updateMemoryError.message);
-        }
-      } else {
-        const { error: insertMemoryError } = await supabase
-          .from("garden_long_term_memory")
-          .insert({
-            garden_id: garden.id,
-            memory_version: 1,
-            summary_text: memoryPayload.summary_text,
-            memory_json: memoryPayload.memory_json,
-            updated_at: memoryPayload.updated_at,
-          });
-
-        if (insertMemoryError) {
-          throw new Error(insertMemoryError.message);
-        }
-      }
-
-      console.log("[settle-ai] stageOne raw:", stageOneRaw);
-      console.log("[settle-ai] stageTwo raw:", stageTwoRaw);
-      console.log("[settle-ai] compression raw:", compressionRaw);
       console.log("[settle-ai] source=ai");
-
-      return NextResponse.json({
-        success: true,
-        source,
-        aiErrorMessage,
-        stageOneRaw,
-        stageTwoRaw,
-        compressionRaw,
-        summary: insertedSummary,
-      });
     } catch (error) {
       source = "fallback";
       aiErrorMessage =
@@ -307,37 +198,74 @@ export async function POST() {
 
       console.error("[settle-ai] AI failed, fallback used:", error);
 
-      summaryResult = buildDailySummary({
+      const fallback = buildDailySummary({
         moodA: entryA.mood,
         moodB: entryB.mood,
         contentA: entryA.content,
         contentB: entryB.content,
       });
 
-      const { data: insertedSummary, error: insertError } = await supabase
+      summaryResult = {
+        ...fallback,
+        reflection_for_a: "你今天更像是在收着情绪，并不是不在意。",
+        reflection_for_b: "你今天的表达偏克制，但仍然能看见在意。",
+        encouragement_for_a: "你依然在努力把真实状态留在这段关系里。",
+        encouragement_for_b: "你今天的克制里，仍然有温柔和在意。",
+        daily_letter:
+          "今天的共土没有剧烈变化，它更像是在安静地保存两个人还没有说完的部分。表面上风很小，光也不算亮，但土壤底下仍然有热度。你们并没有离开彼此，只是今天都更适合慢一点，把话留到更能承接的时候。",
+      };
+    }
+
+    if (existingSummary && forceRegenerate) {
+      const nextRegenerateCount = Number(existingSummary.regenerate_count ?? 0) + 1;
+
+      const { data: updatedSummary, error: updateError } = await supabase
         .from("daily_summaries")
-        .insert({
-          garden_id: garden.id,
-          summary_date: today,
+        .update({
           ...summaryResult,
+          regenerate_count: nextRegenerateCount,
         })
+        .eq("id", existingSummary.id)
         .select()
         .single();
 
-      if (insertError) {
-        throw new Error(insertError.message);
+      if (updateError) {
+        throw new Error(updateError.message);
       }
 
       return NextResponse.json({
         success: true,
+        regenerated: true,
         source,
         aiErrorMessage,
-        stageOneRaw,
-        stageTwoRaw,
-        compressionRaw,
-        summary: insertedSummary,
+        rawAiText,
+        summary: updatedSummary,
       });
     }
+
+    const { data: insertedSummary, error: insertError } = await supabase
+      .from("daily_summaries")
+      .insert({
+        garden_id: garden.id,
+        summary_date: today,
+        regenerate_count: 0,
+        ...summaryResult,
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      throw new Error(insertError.message);
+    }
+
+    return NextResponse.json({
+      success: true,
+      regenerated: false,
+      source,
+      aiErrorMessage,
+      rawAiText,
+      summary: insertedSummary,
+    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "AI 结算时发生未知错误";
