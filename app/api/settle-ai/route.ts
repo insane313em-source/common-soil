@@ -17,6 +17,12 @@ function extractJson(raw: string) {
   return trimmed;
 }
 
+function clipText(text: string | null | undefined, maxLen = 260) {
+  const value = (text ?? "").trim();
+  if (!value) return "";
+  return value.length > maxLen ? `${value.slice(0, maxLen)}...` : value;
+}
+
 function normalizeSummary(input: Record<string, unknown>) {
   return {
     sincerity_score: Number(input.sincerity_score ?? 60),
@@ -27,38 +33,32 @@ function normalizeSummary(input: Record<string, unknown>) {
     garden_change_type: String(input.garden_change_type ?? "quiet_garden"),
     garden_change_text: String(input.garden_change_text ?? "今天的庭院很安静。"),
     ai_observation_text: String(
-      input.ai_observation_text ?? "今天的状态像是放慢了，但并没有真正离开。"
+      input.ai_observation_text ?? "今天像是放慢了一些，但并没有真正离开。"
     ),
     soil_state: String(input.soil_state ?? "回暖中"),
     light_state: String(input.light_state ?? "微亮"),
     vitality_state: String(input.vitality_state ?? "缓慢生长"),
     connection_state: String(input.connection_state ?? "仍在连着"),
     symbolic_suggestion: String(
-      input.symbolic_suggestion ?? "先别急着解释全部，把今天的疲惫轻轻放下来。"
+      input.symbolic_suggestion ?? "先别急着把所有话说完，留一点缓冲给今天。"
     ),
     relationship_weather: String(
-      input.relationship_weather ?? "夜色偏静，风小，适合慢一点靠近。"
+      input.relationship_weather ?? "夜色偏静，风小，仍有一点温度。"
     ),
     shared_theme: String(input.shared_theme ?? "安静里的牵挂"),
     gentle_action: String(
-      input.gentle_action ?? "发一句轻一点的问候，不急着把很多话说完。"
+      input.gentle_action ?? "发一句轻一点的问候，不急着延展开。"
     ),
 
     reflection_for_a: String(
-      input.reflection_for_a ?? "你今天更像是在收着情绪，并不是不在意。"
+      input.reflection_for_a ?? "你今天更像是在收着状态，并不是不在意。"
     ),
     reflection_for_b: String(
-      input.reflection_for_b ?? "你今天的表达偏克制，但仍然能看见在意。"
-    ),
-    encouragement_for_a: String(
-      input.encouragement_for_a ?? "你依然在努力把真实状态留在这段关系里。"
-    ),
-    encouragement_for_b: String(
-      input.encouragement_for_b ?? "你今天的克制里，仍然有温柔和在意。"
+      input.reflection_for_b ?? "你今天的表达偏克制，但并没有真正抽离。"
     ),
     daily_letter: String(
       input.daily_letter ??
-        "今天的共土没有剧烈变化，它更像是在安静地保存两个人还没有说完的部分。表面上风很小，光也不算亮，但土壤底下仍然有热度。你们并没有离开彼此，只是今天都更适合慢一点，把话留到更能承接的时候。"
+        "今天的共土没有剧烈变化，它更像是在安静地保存两个人还没说完的部分。风不大，光也不强，但土壤底下仍然有热度。你们并没有离开彼此，只是今天更适合慢一点。"
     ),
   };
 }
@@ -128,6 +128,7 @@ export async function POST(request: Request) {
       }
     }
 
+    // 只取最近 3 次，进一步控 token
     const { data: recentSummariesData, error: recentSummariesError } = await supabase
       .from("daily_summaries")
       .select(
@@ -136,7 +137,7 @@ export async function POST(request: Request) {
       .eq("garden_id", garden.id)
       .lt("summary_date", today)
       .order("summary_date", { ascending: false })
-      .limit(5);
+      .limit(3);
 
     if (recentSummariesError) {
       throw new Error(recentSummariesError.message);
@@ -153,13 +154,13 @@ export async function POST(request: Request) {
       const prompt = buildSettlementPrompt({
         todayA: {
           mood: entryA.mood,
-          content: entryA.content,
-          keywords: entryA.keywords ?? [],
+          content: clipText(entryA.content, 260),
+          keywords: (entryA.keywords ?? []).slice(0, 6),
         },
         todayB: {
           mood: entryB.mood,
-          content: entryB.content,
-          keywords: entryB.keywords ?? [],
+          content: clipText(entryB.content, 260),
+          keywords: (entryB.keywords ?? []).slice(0, 6),
         },
         recentSummaries,
       });
@@ -170,15 +171,16 @@ export async function POST(request: Request) {
           {
             role: "system",
             content:
-              "你是共土的每日结算引擎。你擅长从两个人的记录里读出细微关系气候，并输出高质量、克制、自然的 JSON。禁止输出 markdown，禁止解释。",
+              "你是共土的每日结算引擎。请用克制、自然、不模板化的方式输出 JSON。禁止 markdown，禁止解释。",
           },
           {
             role: "user",
             content: prompt,
           },
         ],
-        temperature: 0.85,
-        top_p: 0.9,
+        temperature: 0.72,
+        top_p: 0.85,
+        max_completion_tokens: 900,
       });
 
       rawAiText = response.choices[0]?.message?.content?.trim() ?? null;
@@ -207,12 +209,10 @@ export async function POST(request: Request) {
 
       summaryResult = {
         ...fallback,
-        reflection_for_a: "你今天更像是在收着情绪，并不是不在意。",
-        reflection_for_b: "你今天的表达偏克制，但仍然能看见在意。",
-        encouragement_for_a: "你依然在努力把真实状态留在这段关系里。",
-        encouragement_for_b: "你今天的克制里，仍然有温柔和在意。",
+        reflection_for_a: "你今天更像是在收着状态，并不是不在意。",
+        reflection_for_b: "你今天的表达偏克制，但并没有真正抽离。",
         daily_letter:
-          "今天的共土没有剧烈变化，它更像是在安静地保存两个人还没有说完的部分。表面上风很小，光也不算亮，但土壤底下仍然有热度。你们并没有离开彼此，只是今天都更适合慢一点，把话留到更能承接的时候。",
+          "今天的共土没有剧烈变化，它更像是在安静地保存两个人还没说完的部分。风不大，光也不强，但土壤底下仍然有热度。你们并没有离开彼此，只是今天更适合慢一点。",
       };
     }
 

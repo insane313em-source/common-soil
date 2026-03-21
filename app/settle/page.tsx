@@ -21,8 +21,6 @@ type SettleResult = {
   gentleAction: string;
   reflectionForA: string;
   reflectionForB: string;
-  encouragementForA: string;
-  encouragementForB: string;
   dailyLetter: string;
   regenerateCount: number;
 };
@@ -51,28 +49,14 @@ function ReadableLabel({
 function ReflectionCard({
   title,
   reflection,
-  encouragement,
 }: {
   title: string;
   reflection: string;
-  encouragement: string;
 }) {
   return (
     <div className="rounded-[28px] border border-zinc-800 bg-zinc-950/85 p-5">
       <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">{title}</p>
-
-      <div className="mt-4">
-        <p className="text-sm leading-8 text-zinc-200">{reflection}</p>
-      </div>
-
-      <div className="mt-5 rounded-2xl border border-emerald-900/40 bg-emerald-950/20 p-4">
-        <p className="text-xs uppercase tracking-[0.2em] text-emerald-300/70">
-          被看见的地方
-        </p>
-        <p className="mt-3 text-sm leading-7 text-emerald-100">
-          {encouragement}
-        </p>
-      </div>
+      <p className="mt-4 text-sm leading-8 text-zinc-200">{reflection}</p>
     </div>
   );
 }
@@ -127,16 +111,12 @@ export default function SettlePage() {
       sharedTheme: data.summary.shared_theme ?? "",
       gentleAction: data.summary.gentle_action ?? "",
       reflectionForA:
-        data.summary.reflection_for_a ?? "你今天更像是在收着情绪，并不是不在意。",
+        data.summary.reflection_for_a ?? "你今天更像是在收着状态，并不是不在意。",
       reflectionForB:
-        data.summary.reflection_for_b ?? "你今天的表达偏克制，但仍然能看见在意。",
-      encouragementForA:
-        data.summary.encouragement_for_a ?? "你依然在努力把真实状态留在这段关系里。",
-      encouragementForB:
-        data.summary.encouragement_for_b ?? "你今天的克制里，仍然有温柔和在意。",
+        data.summary.reflection_for_b ?? "你今天的表达偏克制，但并没有真正抽离。",
       dailyLetter:
         data.summary.daily_letter ??
-        "今天的共土没有剧烈变化，它更像是在安静地保存两个人还没有说完的部分。",
+        "今天的共土没有剧烈变化，它更像是在安静地保存两个人还没说完的部分。",
       regenerateCount: Number(data.summary.regenerate_count ?? 0),
     };
   }
@@ -361,16 +341,8 @@ export default function SettlePage() {
                 </div>
 
                 <div className="mt-6 grid gap-4 md:grid-cols-2">
-                  <ReflectionCard
-                    title="给 A"
-                    reflection={result.reflectionForA}
-                    encouragement={result.encouragementForA}
-                  />
-                  <ReflectionCard
-                    title="给 B"
-                    reflection={result.reflectionForB}
-                    encouragement={result.encouragementForB}
-                  />
+                  <ReflectionCard title="给 A" reflection={result.reflectionForA} />
+                  <ReflectionCard title="给 B" reflection={result.reflectionForB} />
                 </div>
               </SurfaceCard>
             </Reveal>
