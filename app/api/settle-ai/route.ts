@@ -4,20 +4,7 @@ import { openai } from "@/lib/openai";
 import { buildDailySummary } from "@/lib/helpers";
 import { buildSettlementPrompt } from "@/lib/settlement-prompt";
 
-function extractJson(raw: string) {
-  const trimmed = raw.trim();
-
-  if (trimmed.startsWith("```")) {
-    const match = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-    if (match?.[1]) {
-      return match[1].trim();
-    }
-  }
-
-  return trimmed;
-}
-
-function clipText(text: string | null | undefined, maxLen = 260) {
+function clipText(text: string | null | undefined, maxLen = 180) {
   const value = (text ?? "").trim();
   if (!value) return "";
   return value.length > maxLen ? `${value.slice(0, maxLen)}...` : value;
@@ -62,6 +49,59 @@ function normalizeSummary(input: Record<string, unknown>) {
     ),
   };
 }
+
+const settlementJsonSchema = {
+  name: "common_soil_settlement",
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      sincerity_score: { type: "integer" },
+      connection_score: { type: "integer" },
+      vitality_score: { type: "integer" },
+      resonance_score: { type: "integer" },
+
+      garden_change_type: { type: "string" },
+      garden_change_text: { type: "string" },
+      ai_observation_text: { type: "string" },
+      soil_state: { type: "string" },
+      light_state: { type: "string" },
+      vitality_state: { type: "string" },
+      connection_state: { type: "string" },
+      symbolic_suggestion: { type: "string" },
+      relationship_weather: { type: "string" },
+      shared_theme: { type: "string" },
+      gentle_action: { type: "string" },
+
+      reflection_for_a: { type: "string" },
+      reflection_for_b: { type: "string" },
+      daily_letter: { type: "string" },
+    },
+    required: [
+      "sincerity_score",
+      "connection_score",
+      "vitality_score",
+      "resonance_score",
+
+      "garden_change_type",
+      "garden_change_text",
+      "ai_observation_text",
+      "soil_state",
+      "light_state",
+      "vitality_state",
+      "connection_state",
+      "symbolic_suggestion",
+      "relationship_weather",
+      "shared_theme",
+      "gentle_action",
+
+      "reflection_for_a",
+      "reflection_for_b",
+      "daily_letter",
+    ],
+  },
+};
 
 export async function POST(request: Request) {
   try {
@@ -115,7 +155,6 @@ export async function POST(request: Request) {
 
     if (existingSummary && forceRegenerate) {
       const currentRegenerateCount = Number(existingSummary.regenerate_count ?? 0);
-
       if (currentRegenerateCount >= 2) {
         return NextResponse.json(
           {
@@ -128,7 +167,6 @@ export async function POST(request: Request) {
       }
     }
 
-    // 只取最近 3 次，进一步控 token
     const { data: recentSummariesData, error: recentSummariesError } = await supabase
       .from("daily_summaries")
       .select(
@@ -137,7 +175,7 @@ export async function POST(request: Request) {
       .eq("garden_id", garden.id)
       .lt("summary_date", today)
       .order("summary_date", { ascending: false })
-      .limit(3);
+      .limit(2);
 
     if (recentSummariesError) {
       throw new Error(recentSummariesError.message);
@@ -154,33 +192,37 @@ export async function POST(request: Request) {
       const prompt = buildSettlementPrompt({
         todayA: {
           mood: entryA.mood,
-          content: clipText(entryA.content, 260),
-          keywords: (entryA.keywords ?? []).slice(0, 6),
+          content: clipText(entryA.content, 180),
+          keywords: (entryA.keywords ?? []).slice(0, 4),
         },
         todayB: {
           mood: entryB.mood,
-          content: clipText(entryB.content, 260),
-          keywords: (entryB.keywords ?? []).slice(0, 6),
+          content: clipText(entryB.content, 180),
+          keywords: (entryB.keywords ?? []).slice(0, 4),
         },
         recentSummaries,
       });
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4.1-mini",
+        model: "gpt-4.1-nano",
         messages: [
           {
             role: "system",
             content:
-              "你是共土的每日结算引擎。请用克制、自然、不模板化的方式输出 JSON。禁止 markdown，禁止解释。",
+              "你是共土的每日结算引擎。请输出简洁、自然、克制的结构化 JSON。",
           },
           {
             role: "user",
             content: prompt,
           },
         ],
-        temperature: 0.72,
-        top_p: 0.85,
-        max_completion_tokens: 900,
+        response_format: {
+          type: "json_schema",
+          json_schema: settlementJsonSchema,
+        },
+        temperature: 0.55,
+        top_p: 0.8,
+        max_completion_tokens: 500,
       });
 
       rawAiText = response.choices[0]?.message?.content?.trim() ?? null;
@@ -189,7 +231,7 @@ export async function POST(request: Request) {
         throw new Error("AI 返回内容为空");
       }
 
-      const parsed = JSON.parse(extractJson(rawAiText));
+      const parsed = JSON.parse(rawAiText);
       summaryResult = normalizeSummary(parsed);
 
       console.log("[settle-ai] source=ai");

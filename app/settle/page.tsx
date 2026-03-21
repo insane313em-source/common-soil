@@ -29,7 +29,7 @@ type AccessState =
   | { status: "loading" }
   | { status: "not_logged_in" }
   | { status: "no_garden" }
-  | { status: "ready" };
+  | { status: "ready"; gardenId: string };
 
 function ReadableLabel({
   label,
@@ -66,18 +66,46 @@ export default function SettlePage() {
 
   const [accessState, setAccessState] = useState<AccessState>({ status: "loading" });
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [message, setMessage] = useState("");
   const [result, setResult] = useState<SettleResult | null>(null);
 
+  function mapResult(data: any): SettleResult {
+    const summary = data.summary ?? data;
+
+    return {
+      source: data.source ?? "ai",
+      aiErrorMessage: data.aiErrorMessage ?? null,
+      summaryDate: summary.summary_date,
+      gardenChangeText: summary.garden_change_text ?? "",
+      aiObservationText: summary.ai_observation_text ?? "",
+      symbolicSuggestion: summary.symbolic_suggestion ?? "",
+      relationshipWeather: summary.relationship_weather ?? "",
+      sharedTheme: summary.shared_theme ?? "",
+      gentleAction: summary.gentle_action ?? "",
+      reflectionForA:
+        summary.reflection_for_a ?? "你今天更像是在收着状态，并不是不在意。",
+      reflectionForB:
+        summary.reflection_for_b ?? "你今天的表达偏克制，但并没有真正抽离。",
+      dailyLetter:
+        summary.daily_letter ??
+        "今天的共土没有剧烈变化，它更像是在安静地保存两个人还没说完的部分。",
+      regenerateCount: Number(summary.regenerate_count ?? 0),
+    };
+  }
+
   useEffect(() => {
-    async function checkAccess() {
+    async function checkAccessAndLoadTodaySummary() {
+      setInitialLoading(true);
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
       if (!user) {
         setAccessState({ status: "not_logged_in" });
+        setInitialLoading(false);
         return;
       }
 
@@ -90,36 +118,37 @@ export default function SettlePage() {
 
       if (error || !memberRecord) {
         setAccessState({ status: "no_garden" });
+        setInitialLoading(false);
         return;
       }
 
-      setAccessState({ status: "ready" });
+      const gardenId = memberRecord.garden_id;
+      setAccessState({ status: "ready", gardenId });
+
+      const today = new Date().toISOString().slice(0, 10);
+
+      const { data: existingSummary, error: summaryError } = await supabase
+        .from("daily_summaries")
+        .select("*")
+        .eq("garden_id", gardenId)
+        .eq("summary_date", today)
+        .maybeSingle();
+
+      if (!summaryError && existingSummary) {
+        setResult(
+          mapResult({
+            source: "ai",
+            aiErrorMessage: null,
+            summary: existingSummary,
+          })
+        );
+      }
+
+      setInitialLoading(false);
     }
 
-    checkAccess();
+    checkAccessAndLoadTodaySummary();
   }, [supabase]);
-
-  function mapResult(data: any): SettleResult {
-    return {
-      source: data.source,
-      aiErrorMessage: data.aiErrorMessage ?? null,
-      summaryDate: data.summary.summary_date,
-      gardenChangeText: data.summary.garden_change_text ?? "",
-      aiObservationText: data.summary.ai_observation_text ?? "",
-      symbolicSuggestion: data.summary.symbolic_suggestion ?? "",
-      relationshipWeather: data.summary.relationship_weather ?? "",
-      sharedTheme: data.summary.shared_theme ?? "",
-      gentleAction: data.summary.gentle_action ?? "",
-      reflectionForA:
-        data.summary.reflection_for_a ?? "你今天更像是在收着状态，并不是不在意。",
-      reflectionForB:
-        data.summary.reflection_for_b ?? "你今天的表达偏克制，但并没有真正抽离。",
-      dailyLetter:
-        data.summary.daily_letter ??
-        "今天的共土没有剧烈变化，它更像是在安静地保存两个人还没说完的部分。",
-      regenerateCount: Number(data.summary.regenerate_count ?? 0),
-    };
-  }
 
   async function handleSettle(forceRegenerate = false) {
     setLoading(true);
@@ -155,12 +184,12 @@ export default function SettlePage() {
   const remainingRegenerations =
     result ? Math.max(0, 2 - result.regenerateCount) : 0;
 
-  if (accessState.status === "loading") {
+  if (accessState.status === "loading" || initialLoading) {
     return (
       <PageContainer>
         <EmptyStateCard
-          title="正在确认你的状态"
-          description="我们正在检查你是否已经登录，以及是否已经加入某片共土。"
+          title="正在读取今日结算"
+          description="我们正在检查登录状态，并尝试读取今天已经生成过的结算内容。"
         />
       </PageContainer>
     );
@@ -217,23 +246,25 @@ export default function SettlePage() {
                   Settlement Action
                 </p>
                 <h2 className="mt-2 text-2xl font-medium text-white">
-                  执行今天的结算
+                  {result ? "查看或重新生成今天的结算" : "执行今天的结算"}
                 </h2>
                 <p className="mt-3 max-w-2xl text-sm leading-7 text-zinc-400">
-                  当双方都写完今日记录后，这里会生成今天的共土变化、个体观察与一段写给今天的小文章。
+                  {result
+                    ? "今天的结算已经存在。你可以直接回看，也可以在限制次数内重新生成。"
+                    : "当双方都写完今日记录后，这里会生成今天的共土变化、个体观察与一段写给今天的小文章。"}
                 </p>
               </div>
 
               <div className="flex flex-wrap gap-3">
-                <button
-                  onClick={() => handleSettle(false)}
-                  disabled={loading}
-                  className="primary-button rounded-full px-6 py-3 text-sm font-medium disabled:opacity-60"
-                >
-                  {loading ? "处理中..." : "执行今日结算"}
-                </button>
-
-                {result ? (
+                {!result ? (
+                  <button
+                    onClick={() => handleSettle(false)}
+                    disabled={loading}
+                    className="primary-button rounded-full px-6 py-3 text-sm font-medium disabled:opacity-60"
+                  >
+                    {loading ? "处理中..." : "执行今日结算"}
+                  </button>
+                ) : (
                   <button
                     onClick={() => handleSettle(true)}
                     disabled={loading || remainingRegenerations <= 0}
@@ -241,7 +272,7 @@ export default function SettlePage() {
                   >
                     重新生成（剩余 {remainingRegenerations} 次）
                   </button>
-                ) : null}
+                )}
               </div>
             </div>
           </SurfaceCard>
@@ -269,7 +300,7 @@ export default function SettlePage() {
                       Today&apos;s Letter
                     </p>
                     <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white">
-                      {result.source === "ai" ? "今天的共土小结" : "今日模板结算"}
+                      今天的共土小结
                     </h2>
                     <p className="mt-3 text-sm text-zinc-500">
                       结算日期：{result.summaryDate} · 已重生成 {result.regenerateCount} / 2 次
