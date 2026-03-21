@@ -4,6 +4,8 @@ import { FormEvent, useState } from "react";
 import PageContainer from "@/components/PageContainer";
 import SectionTitle from "@/components/SectionTitle";
 import SurfaceCard from "@/components/SurfaceCard";
+import NoticeCard from "@/components/NoticeCard";
+import Reveal from "@/components/Reveal";
 import { createClient } from "@/lib/supabase-browser";
 
 type JoinResult = {
@@ -128,58 +130,79 @@ export default function JoinPage() {
   return (
     <PageContainer>
       <div className="mx-auto max-w-3xl">
-        <SurfaceCard className="soft-grid rounded-[32px] p-8 sm:p-10">
-          <SectionTitle
-            eyebrow="Join Common Soil"
-            title="加入共土"
-            description="输入对方分享的邀请码，进入同一片共同生长的共土。"
-          />
-        </SurfaceCard>
-
-        <SurfaceCard className="mt-8 p-6">
-          <form onSubmit={handleSubmit}>
-            <label className="mb-2 block text-sm text-zinc-300">邀请码</label>
-            <input
-              type="text"
-              value={inviteCode}
-              onChange={(e) => setInviteCode(e.target.value)}
-              placeholder="输入邀请码"
-              className="input-shell w-full rounded-2xl px-4 py-3 uppercase placeholder:text-zinc-500"
+        <Reveal>
+          <SurfaceCard className="soft-grid rounded-[32px] p-8 sm:p-10" hover={false}>
+            <SectionTitle
+              eyebrow="Join Common Soil"
+              title="加入共土"
+              description="输入对方分享的邀请码，进入同一片共同生长的共土。"
             />
+          </SurfaceCard>
+        </Reveal>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="primary-button mt-6 rounded-full px-6 py-3 text-sm font-medium disabled:opacity-60"
-            >
-              {loading ? "加入中..." : "加入这片共土"}
-            </button>
-          </form>
-        </SurfaceCard>
+        <Reveal delayMs={80}>
+          <SurfaceCard className="mt-8 p-6">
+            <form onSubmit={handleSubmit}>
+              <label className="mb-2 block text-sm text-zinc-300">邀请码</label>
+              <input
+                type="text"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+                placeholder="输入邀请码"
+                className="input-shell w-full rounded-2xl px-4 py-3 uppercase placeholder:text-zinc-500"
+              />
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="primary-button mt-6 rounded-full px-6 py-3 text-sm font-medium disabled:opacity-60"
+              >
+                {loading ? "加入中..." : "加入这片共土"}
+              </button>
+            </form>
+          </SurfaceCard>
+        </Reveal>
 
         {errorMessage ? (
-          <div className="mt-6 rounded-2xl border border-red-900/60 bg-red-950/40 p-5 text-red-200">
+          <NoticeCard tone="error" className="mt-6">
             加入失败：{errorMessage}
-          </div>
+          </NoticeCard>
         ) : null}
 
         {result ? (
-          <SurfaceCard className="mt-6 p-6">
-            <h2 className="text-lg font-medium text-white">加入成功</h2>
-            <p className="mt-3 text-sm text-zinc-300">
-              你已成功加入共土{" "}
-              <span className="font-semibold">{result.gardenName}</span>。
-            </p>
+          <Reveal delayMs={140}>
+            <SurfaceCard className="mt-6 p-6">
+              <h2 className="text-lg font-medium text-white">加入成功</h2>
+              <p className="mt-3 text-sm leading-7 text-zinc-300">
+                你已成功加入共土{" "}
+                <span className="font-semibold">{result.gardenName}</span>。
+              </p>
 
-            <div className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
-              <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">
-                当前邀请码
-              </p>
-              <p className="mt-3 text-2xl font-semibold tracking-[0.24em] text-white">
-                {result.inviteCode}
-              </p>
-            </div>
-          </SurfaceCard>
+              <div className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+                <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">
+                  当前邀请码
+                </p>
+                <p className="mt-3 text-2xl font-semibold tracking-[0.24em] text-white">
+                  {result.inviteCode}
+                </p>
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-3">
+                <a
+                  href="/home"
+                  className="primary-button rounded-full px-5 py-3 text-sm font-medium"
+                >
+                  返回总览
+                </a>
+                <a
+                  href="/garden"
+                  className="secondary-button rounded-full px-5 py-3 text-sm"
+                >
+                  进入共土
+                </a>
+              </div>
+            </SurfaceCard>
+          </Reveal>
         ) : null}
       </div>
     </PageContainer>

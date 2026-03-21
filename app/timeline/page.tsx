@@ -2,6 +2,7 @@ import PageContainer from "@/components/PageContainer";
 import EmptyStateCard from "@/components/EmptyStateCard";
 import SectionTitle from "@/components/SectionTitle";
 import SurfaceCard from "@/components/SurfaceCard";
+import Reveal from "@/components/Reveal";
 import { getCurrentGardenOrThrow } from "@/lib/garden-server";
 
 type DailySummaryRecord = {
@@ -49,7 +50,6 @@ export default async function TimelinePage({
     }
 
     const { data } = await query;
-
     const summaries = (data ?? []) as DailySummaryRecord[];
 
     const { data: allData } = await supabase
@@ -73,123 +73,140 @@ export default async function TimelinePage({
     return (
       <PageContainer>
         <div className="mx-auto max-w-5xl">
-          <SurfaceCard className="soft-grid rounded-[32px] p-8 sm:p-10">
-            <SectionTitle
-              eyebrow="Growth Timeline"
-              title="成长时间线"
-              description="这里只记录当前共土发生过的变化，不展示双方原文。"
-            />
-          </SurfaceCard>
+          <Reveal>
+            <SurfaceCard className="soft-grid rounded-[32px] p-8 sm:p-10" hover={false}>
+              <SectionTitle
+                eyebrow="Growth Timeline"
+                title="成长时间线"
+                description="这里只记录当前共土发生过的变化，不展示双方原文。"
+              />
+            </SurfaceCard>
+          </Reveal>
 
-          <SurfaceCard className="mt-8 p-6">
-            <form className="grid gap-4 md:grid-cols-3">
-              <div>
-                <label className="mb-2 block text-sm text-zinc-300">按月份筛选</label>
-                <select
-                  name="month"
-                  defaultValue={selectedMonth}
-                  className="input-shell w-full rounded-2xl px-4 py-3"
-                >
-                  <option value="">全部月份</option>
-                  {months.map((month) => (
-                    <option key={month} value={month}>
-                      {month}
-                    </option>
-                  ))}
-                </select>
-              </div>
+          <Reveal delayMs={80}>
+            <SurfaceCard className="mt-8 p-6">
+              <form className="grid gap-4 md:grid-cols-3">
+                <div>
+                  <label className="mb-2 block text-sm text-zinc-300">按月份筛选</label>
+                  <select
+                    name="month"
+                    defaultValue={selectedMonth}
+                    className="input-shell w-full rounded-2xl px-4 py-3"
+                  >
+                    <option value="">全部月份</option>
+                    {months.map((month) => (
+                      <option key={month} value={month}>
+                        {month}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              <div>
-                <label className="mb-2 block text-sm text-zinc-300">按变化类型筛选</label>
-                <select
-                  name="type"
-                  defaultValue={selectedType}
-                  className="input-shell w-full rounded-2xl px-4 py-3"
-                >
-                  <option value="">全部类型</option>
-                  {types.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                <div>
+                  <label className="mb-2 block text-sm text-zinc-300">按变化类型筛选</label>
+                  <select
+                    name="type"
+                    defaultValue={selectedType}
+                    className="input-shell w-full rounded-2xl px-4 py-3"
+                  >
+                    <option value="">全部类型</option>
+                    {types.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              <div className="flex items-end gap-3">
-                <button
-                  type="submit"
-                  className="primary-button rounded-full px-6 py-3 text-sm font-medium"
-                >
-                  应用筛选
-                </button>
-                <a
-                  href="/timeline"
-                  className="secondary-button rounded-full px-6 py-3 text-sm"
-                >
-                  清空
-                </a>
-              </div>
-            </form>
-          </SurfaceCard>
+                <div className="flex items-end gap-3">
+                  <button
+                    type="submit"
+                    className="primary-button rounded-full px-6 py-3 text-sm font-medium"
+                  >
+                    应用筛选
+                  </button>
+                  <a
+                    href="/timeline"
+                    className="secondary-button rounded-full px-6 py-3 text-sm"
+                  >
+                    清空
+                  </a>
+                </div>
+              </form>
+            </SurfaceCard>
+          </Reveal>
 
           <div className="mt-8 space-y-4">
             {summaries.length > 0 ? (
-              summaries.map((item) => (
-                <SurfaceCard key={item.id} className="p-6">
-                  <p className="text-sm text-zinc-500">{item.summary_date}</p>
-                  <h2 className="mt-3 text-xl font-medium text-white">
-                    {item.garden_change_text}
-                  </h2>
-                  <p className="mt-2 text-xs uppercase tracking-[0.2em] text-zinc-600">
-                    {item.garden_change_type ?? "unknown_change"}
-                  </p>
-                  <p className="mt-4 leading-7 text-zinc-400">
-                    {item.ai_observation_text}
-                  </p>
+              summaries.map((item, index) => (
+                <Reveal key={item.id} delayMs={120 + index * 40}>
+                  <SurfaceCard className="p-6">
+                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <p className="text-sm text-zinc-500">{item.summary_date}</p>
+                        <h2 className="mt-3 text-xl font-medium text-white">
+                          {item.garden_change_text}
+                        </h2>
+                        <p className="mt-2 text-xs uppercase tracking-[0.2em] text-cyan-300/70">
+                          {item.garden_change_type ?? "unknown_change"}
+                        </p>
+                      </div>
 
-                  <div className="mt-5 grid gap-3 md:grid-cols-2">
-                    <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
-                      <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-                        关系气候
-                      </p>
-                      <p className="mt-2 text-sm leading-6 text-zinc-300">
-                        {item.relationship_weather ?? "暂无"}
-                      </p>
+                      <div className="rounded-full border border-cyan-400/15 bg-cyan-400/8 px-3 py-1 text-xs tracking-[0.18em] text-cyan-200/80 uppercase">
+                        Timeline
+                      </div>
                     </div>
 
-                    <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
-                      <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-                        共振主题
-                      </p>
-                      <p className="mt-2 text-sm leading-6 text-zinc-300">
-                        {item.shared_theme ?? "暂无"}
-                      </p>
-                    </div>
+                    <p className="mt-4 leading-7 text-zinc-300">
+                      {item.ai_observation_text}
+                    </p>
 
-                    <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
-                      <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-                        隐喻建议
-                      </p>
-                      <p className="mt-2 text-sm leading-6 text-zinc-300">
-                        {item.symbolic_suggestion ?? "暂无"}
-                      </p>
-                    </div>
+                    <div className="mt-5 grid gap-3 md:grid-cols-2">
+                      <div className="rounded-2xl border border-cyan-400/10 bg-cyan-400/5 p-4">
+                        <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                          关系气候
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-zinc-200">
+                          {item.relationship_weather ?? "暂无"}
+                        </p>
+                      </div>
 
-                    <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
-                      <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-                        轻动作建议
-                      </p>
-                      <p className="mt-2 text-sm leading-6 text-zinc-300">
-                        {item.gentle_action ?? "暂无"}
-                      </p>
+                      <div className="rounded-2xl border border-teal-400/10 bg-teal-400/5 p-4">
+                        <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                          共振主题
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-zinc-200">
+                          {item.shared_theme ?? "暂无"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-emerald-400/10 bg-emerald-400/5 p-4">
+                        <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                          隐喻建议
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-zinc-200">
+                          {item.symbolic_suggestion ?? "暂无"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-amber-300/10 bg-amber-300/5 p-4">
+                        <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                          轻动作建议
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-zinc-200">
+                          {item.gentle_action ?? "暂无"}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                </SurfaceCard>
+                  </SurfaceCard>
+                </Reveal>
               ))
             ) : (
-              <SurfaceCard className="p-6 text-zinc-400">
-                当前筛选条件下还没有结算记录。
-              </SurfaceCard>
+              <Reveal delayMs={120}>
+                <SurfaceCard className="p-6 text-zinc-400">
+                  当前筛选条件下还没有结算记录。
+                </SurfaceCard>
+              </Reveal>
             )}
           </div>
         </div>

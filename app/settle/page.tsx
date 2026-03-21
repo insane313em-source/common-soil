@@ -5,6 +5,8 @@ import PageContainer from "@/components/PageContainer";
 import EmptyStateCard from "@/components/EmptyStateCard";
 import SectionTitle from "@/components/SectionTitle";
 import SurfaceCard from "@/components/SurfaceCard";
+import NoticeCard from "@/components/NoticeCard";
+import Reveal from "@/components/Reveal";
 import { createClient } from "@/lib/supabase-browser";
 
 type SettleResult = {
@@ -142,66 +144,86 @@ export default function SettlePage() {
   return (
     <PageContainer>
       <div className="mx-auto max-w-4xl">
-        <SurfaceCard className="soft-grid rounded-[32px] p-8 sm:p-10">
-          <SectionTitle
-            eyebrow="Daily Settlement"
-            title="每日结算"
-            description="这里只会对当前登录用户所属共土执行当天结算。"
-          />
-        </SurfaceCard>
+        <Reveal>
+          <SurfaceCard className="soft-grid rounded-[32px] p-8 sm:p-10" hover={false}>
+            <SectionTitle
+              eyebrow="Daily Settlement"
+              title="每日结算"
+              description="这里只会对当前登录用户所属共土执行当天结算。"
+            />
+          </SurfaceCard>
+        </Reveal>
 
-        <SurfaceCard className="mt-8 p-6">
-          <button
-            onClick={handleSettle}
-            disabled={loading}
-            className="primary-button rounded-full px-6 py-3 text-sm font-medium disabled:opacity-60"
-          >
-            {loading ? "结算中..." : "执行今日结算"}
-          </button>
-        </SurfaceCard>
+        <Reveal delayMs={80}>
+          <SurfaceCard className="mt-8 p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">
+                  Settlement Action
+                </p>
+                <h2 className="mt-2 text-xl font-medium text-white">
+                  执行今天的结算
+                </h2>
+                <p className="mt-3 text-sm leading-7 text-zinc-400">
+                  当双方都写完今日记录后，这里会生成今天的共土变化和关系层观察。
+                </p>
+              </div>
+
+              <button
+                onClick={handleSettle}
+                disabled={loading}
+                className="primary-button rounded-full px-6 py-3 text-sm font-medium disabled:opacity-60"
+              >
+                {loading ? "结算中..." : "执行今日结算"}
+              </button>
+            </div>
+          </SurfaceCard>
+        </Reveal>
 
         {errorMessage ? (
-          <div className="mt-6 rounded-2xl border border-red-900/60 bg-red-950/40 p-5 text-red-200">
+          <NoticeCard tone="error" className="mt-6">
             结算失败：{errorMessage}
-          </div>
+          </NoticeCard>
         ) : null}
 
         {result ? (
-          <SurfaceCard className="mt-6 p-6">
-            <h2 className="text-lg font-medium text-white">
-              {result.source === "ai" ? "AI 结算成功" : "已使用本地模板结算"}
-            </h2>
+          <Reveal delayMs={140}>
+            <SurfaceCard className="mt-6 p-6">
+              <h2 className="text-lg font-medium text-white">
+                {result.source === "ai" ? "AI 结算成功" : "已使用本地模板结算"}
+              </h2>
 
-            {result.source === "fallback" && result.aiErrorMessage ? (
-              <div className="mt-4 rounded-2xl border border-yellow-900/60 bg-yellow-950/30 p-4 text-sm text-yellow-200">
-                AI 未成功生成，本次使用了本地模板。原因：{result.aiErrorMessage}
+              {result.source === "fallback" && result.aiErrorMessage ? (
+                <NoticeCard tone="warning" className="mt-4">
+                  AI 未成功生成，本次使用了本地模板。原因：{result.aiErrorMessage}
+                </NoticeCard>
+              ) : null}
+
+              <div className="mt-5 space-y-3 rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+                <p className="text-sm">
+                  <span className="text-zinc-500">日期：</span> {result.summaryDate}
+                </p>
+                <p className="text-sm">
+                  <span className="text-zinc-500">共土变化：</span> {result.gardenChangeText}
+                </p>
+                <p className="text-sm">
+                  <span className="text-zinc-500">观察短句：</span> {result.aiObservationText}
+                </p>
+                <p className="text-sm">
+                  <span className="text-zinc-500">关系气候：</span> {result.relationshipWeather}
+                </p>
+                <p className="text-sm">
+                  <span className="text-zinc-500">共振主题：</span> {result.sharedTheme}
+                </p>
+                <p className="text-sm">
+                  <span className="text-zinc-500">隐喻建议：</span> {result.symbolicSuggestion}
+                </p>
+                <p className="text-sm">
+                  <span className="text-zinc-500">轻动作建议：</span> {result.gentleAction}
+                </p>
               </div>
-            ) : null}
-
-            <div className="mt-5 space-y-3 rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
-              <p className="text-sm">
-                <span className="text-zinc-500">日期：</span> {result.summaryDate}
-              </p>
-              <p className="text-sm">
-                <span className="text-zinc-500">共土变化：</span> {result.gardenChangeText}
-              </p>
-              <p className="text-sm">
-                <span className="text-zinc-500">观察短句：</span> {result.aiObservationText}
-              </p>
-              <p className="text-sm">
-                <span className="text-zinc-500">关系气候：</span> {result.relationshipWeather}
-              </p>
-              <p className="text-sm">
-                <span className="text-zinc-500">共振主题：</span> {result.sharedTheme}
-              </p>
-              <p className="text-sm">
-                <span className="text-zinc-500">隐喻建议：</span> {result.symbolicSuggestion}
-              </p>
-              <p className="text-sm">
-                <span className="text-zinc-500">轻动作建议：</span> {result.gentleAction}
-              </p>
-            </div>
-          </SurfaceCard>
+            </SurfaceCard>
+          </Reveal>
         ) : null}
       </div>
     </PageContainer>

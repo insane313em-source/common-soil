@@ -6,6 +6,8 @@ import PageContainer from "@/components/PageContainer";
 import EmptyStateCard from "@/components/EmptyStateCard";
 import SectionTitle from "@/components/SectionTitle";
 import SurfaceCard from "@/components/SurfaceCard";
+import NoticeCard from "@/components/NoticeCard";
+import Reveal from "@/components/Reveal";
 import { createClient } from "@/lib/supabase-browser";
 
 type MemberRecord = {
@@ -285,193 +287,209 @@ export default function SettingsPage() {
   return (
     <PageContainer>
       <div className="mx-auto max-w-6xl">
-        <SurfaceCard className="soft-grid rounded-[32px] p-8 sm:p-10">
-          <SectionTitle
-            eyebrow="Common Soil Settings"
-            title="共土设置"
-            description="你可以在这里查看当前共土信息、管理成员状态，并处理账号安全相关入口。"
-          />
-        </SurfaceCard>
+        <Reveal>
+          <SurfaceCard className="soft-grid rounded-[32px] p-8 sm:p-10" hover={false}>
+            <SectionTitle
+              eyebrow="Common Soil Settings"
+              title="共土设置"
+              description="你可以在这里查看当前共土信息、管理成员状态，并处理账号安全相关入口。"
+            />
+          </SurfaceCard>
+        </Reveal>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[2fr_1fr]">
           <div className="space-y-6">
-            <SurfaceCard className="p-6">
-              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-                基本信息
-              </p>
-
-              <div className="mt-5 grid gap-4 md:grid-cols-3">
-                <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-                    当前名称
-                  </p>
-                  <p className="mt-3 text-sm text-zinc-300">
-                    {accessState.gardenName}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-                    邀请码
-                  </p>
-                  <p className="mt-3 text-sm tracking-[0.2em] text-zinc-300">
-                    {accessState.inviteCode}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-                    当前角色
-                  </p>
-                  <p className="mt-3 text-sm text-zinc-300">
-                    {accessState.role === "owner" ? "创建者" : "成员"}
-                  </p>
-                </div>
-              </div>
-            </SurfaceCard>
-
-            <SurfaceCard className="p-6">
-              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-                成员列表
-              </p>
-
-              <div className="mt-5 space-y-3">
-                {accessState.members.map((member, index) => {
-                  const isSelf = member.user_id === accessState.currentUserId;
-                  const isOwner = member.role === "owner";
-
-                  return (
-                    <div
-                      key={member.id}
-                      className="flex items-center justify-between rounded-2xl border border-zinc-800 bg-zinc-950/80 px-4 py-4"
-                    >
-                      <div>
-                        <p className="text-sm text-zinc-300">
-                          成员 {index + 1}
-                          {isSelf ? " · 你" : ""}
-                        </p>
-                        <p className="mt-1 text-xs uppercase tracking-[0.2em] text-zinc-500">
-                          {isOwner ? "owner" : "partner"}
-                        </p>
-                      </div>
-
-                      <div className="text-sm text-zinc-400">
-                        {isOwner ? "创建者" : "成员"}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </SurfaceCard>
-
-            <SurfaceCard className="p-6">
-              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-                修改共土名称
-              </p>
-
-              <form onSubmit={handleRename} className="mt-5">
-                <label className="mb-2 block text-sm text-zinc-300">共土名称</label>
-                <input
-                  type="text"
-                  value={gardenName}
-                  onChange={(e) => setGardenName(e.target.value)}
-                  className="input-shell w-full rounded-2xl px-4 py-3"
-                />
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="primary-button mt-5 rounded-full px-6 py-3 text-sm font-medium disabled:opacity-60"
-                >
-                  {loading ? "保存中..." : "保存名称"}
-                </button>
-              </form>
-
-              {accessState.role !== "owner" ? (
-                <p className="mt-4 text-sm leading-6 text-zinc-500">
-                  当前账号不是创建者，所以只能查看，不能修改共土名称。
+            <Reveal delayMs={80}>
+              <SurfaceCard className="p-6">
+                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                  基本信息
                 </p>
-              ) : null}
-            </SurfaceCard>
 
-            <SurfaceCard className="p-6">
-              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-                成员操作
-              </p>
+                <div className="mt-5 grid gap-4 md:grid-cols-3">
+                  <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                      当前名称
+                    </p>
+                    <p className="mt-3 text-sm text-zinc-300">
+                      {accessState.gardenName}
+                    </p>
+                  </div>
 
-              <div className="mt-5 flex flex-wrap gap-3">
-                <button
-                  onClick={handleLeave}
-                  disabled={loading}
-                  className="secondary-button rounded-full px-5 py-3 text-sm disabled:opacity-60"
-                >
-                  退出共土
-                </button>
+                  <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                      邀请码
+                    </p>
+                    <p className="mt-3 text-sm tracking-[0.2em] text-zinc-300">
+                      {accessState.inviteCode}
+                    </p>
+                  </div>
 
-                <button
-                  onClick={handleDissolve}
-                  disabled={loading}
-                  className="rounded-full border border-red-900/60 bg-red-950/30 px-5 py-3 text-sm text-red-200 transition hover:bg-red-950/45 disabled:opacity-60"
-                >
-                  解散共土
-                </button>
-              </div>
+                  <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                      当前角色
+                    </p>
+                    <p className="mt-3 text-sm text-zinc-300">
+                      {accessState.role === "owner" ? "创建者" : "成员"}
+                    </p>
+                  </div>
+                </div>
+              </SurfaceCard>
+            </Reveal>
 
-              <p className="mt-4 text-sm leading-6 text-zinc-500">
-                成员可退出当前共土；创建者不能直接退出，但可以解散整片共土。
-              </p>
-            </SurfaceCard>
+            <Reveal delayMs={120}>
+              <SurfaceCard className="p-6">
+                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                  成员列表
+                </p>
+
+                <div className="mt-5 space-y-3">
+                  {accessState.members.map((member, index) => {
+                    const isSelf = member.user_id === accessState.currentUserId;
+                    const isOwner = member.role === "owner";
+
+                    return (
+                      <div
+                        key={member.id}
+                        className="flex items-center justify-between rounded-2xl border border-zinc-800 bg-zinc-950/80 px-4 py-4"
+                      >
+                        <div>
+                          <p className="text-sm text-zinc-300">
+                            成员 {index + 1}
+                            {isSelf ? " · 你" : ""}
+                          </p>
+                          <p className="mt-1 text-xs uppercase tracking-[0.2em] text-zinc-500">
+                            {isOwner ? "owner" : "partner"}
+                          </p>
+                        </div>
+
+                        <div className="text-sm text-zinc-400">
+                          {isOwner ? "创建者" : "成员"}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </SurfaceCard>
+            </Reveal>
+
+            <Reveal delayMs={160}>
+              <SurfaceCard className="p-6">
+                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                  修改共土名称
+                </p>
+
+                <form onSubmit={handleRename} className="mt-5">
+                  <label className="mb-2 block text-sm text-zinc-300">共土名称</label>
+                  <input
+                    type="text"
+                    value={gardenName}
+                    onChange={(e) => setGardenName(e.target.value)}
+                    className="input-shell w-full rounded-2xl px-4 py-3"
+                  />
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="primary-button mt-5 rounded-full px-6 py-3 text-sm font-medium disabled:opacity-60"
+                  >
+                    {loading ? "保存中..." : "保存名称"}
+                  </button>
+                </form>
+
+                {accessState.role !== "owner" ? (
+                  <p className="mt-4 text-sm leading-6 text-zinc-500">
+                    当前账号不是创建者，所以只能查看，不能修改共土名称。
+                  </p>
+                ) : null}
+              </SurfaceCard>
+            </Reveal>
+
+            <Reveal delayMs={200}>
+              <SurfaceCard className="p-6">
+                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                  成员操作
+                </p>
+
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <button
+                    onClick={handleLeave}
+                    disabled={loading}
+                    className="secondary-button rounded-full px-5 py-3 text-sm disabled:opacity-60"
+                  >
+                    退出共土
+                  </button>
+
+                  <button
+                    onClick={handleDissolve}
+                    disabled={loading}
+                    className="rounded-full border border-red-900/60 bg-red-950/30 px-5 py-3 text-sm text-red-200 transition hover:bg-red-950/45 disabled:opacity-60"
+                  >
+                    解散共土
+                  </button>
+                </div>
+
+                <p className="mt-4 text-sm leading-6 text-zinc-500">
+                  成员可退出当前共土；创建者不能直接退出，但可以解散整片共土。
+                </p>
+              </SurfaceCard>
+            </Reveal>
           </div>
 
           <div className="space-y-4">
-            <SurfaceCard className="p-5">
-              <p className="text-sm text-zinc-500">当前账号</p>
-              <p className="mt-3 break-all text-sm text-zinc-300">
-                {accessState.currentUserEmail || "未知邮箱"}
-              </p>
-            </SurfaceCard>
+            <Reveal delayMs={120}>
+              <SurfaceCard className="p-5">
+                <p className="text-sm text-zinc-500">当前账号</p>
+                <p className="mt-3 break-all text-sm text-zinc-300">
+                  {accessState.currentUserEmail || "未知邮箱"}
+                </p>
+              </SurfaceCard>
+            </Reveal>
 
-            <SurfaceCard className="p-5">
-              <p className="text-sm text-zinc-500">账号安全</p>
-              <p className="mt-3 text-sm leading-7 text-zinc-400">
-                如果你需要修改密码，可以使用邮件重置入口。重置邮件会发送到当前账号邮箱。
-              </p>
-              <a
-                href="/forgot-password"
-                className="secondary-button mt-4 inline-flex rounded-full px-5 py-3 text-sm"
-              >
-                去重置密码
-              </a>
-            </SurfaceCard>
+            <Reveal delayMs={160}>
+              <SurfaceCard className="p-5">
+                <p className="text-sm text-zinc-500">账号安全</p>
+                <p className="mt-3 text-sm leading-7 text-zinc-400">
+                  如果你需要修改密码，可以使用邮件重置入口。重置邮件会发送到当前账号邮箱。
+                </p>
+                <a
+                  href="/forgot-password"
+                  className="secondary-button mt-4 inline-flex rounded-full px-5 py-3 text-sm"
+                >
+                  去重置密码
+                </a>
+              </SurfaceCard>
+            </Reveal>
 
-            <SurfaceCard className="p-5">
-              <p className="text-sm text-zinc-500">快捷入口</p>
-              <div className="mt-4 flex flex-wrap gap-3">
-                <a
-                  href="/home"
-                  className="secondary-button rounded-full px-5 py-3 text-sm"
-                >
-                  返回总览
-                </a>
-                <a
-                  href="/garden"
-                  className="secondary-button rounded-full px-5 py-3 text-sm"
-                >
-                  查看共土
-                </a>
-              </div>
-            </SurfaceCard>
+            <Reveal delayMs={200}>
+              <SurfaceCard className="p-5">
+                <p className="text-sm text-zinc-500">快捷入口</p>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <a
+                    href="/home"
+                    className="secondary-button rounded-full px-5 py-3 text-sm"
+                  >
+                    返回总览
+                  </a>
+                  <a
+                    href="/garden"
+                    className="secondary-button rounded-full px-5 py-3 text-sm"
+                  >
+                    查看共土
+                  </a>
+                </div>
+              </SurfaceCard>
+            </Reveal>
 
             {message ? (
-              <div className="rounded-2xl border border-emerald-900/60 bg-emerald-950/30 p-4 text-sm text-emerald-200">
+              <NoticeCard tone="success" className="mt-2">
                 {message}
-              </div>
+              </NoticeCard>
             ) : null}
 
             {errorMessage ? (
-              <div className="rounded-2xl border border-red-900/60 bg-red-950/40 p-4 text-sm text-red-200">
+              <NoticeCard tone="error" className="mt-2">
                 {errorMessage}
-              </div>
+              </NoticeCard>
             ) : null}
           </div>
         </div>

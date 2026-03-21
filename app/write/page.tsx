@@ -5,6 +5,8 @@ import PageContainer from "@/components/PageContainer";
 import EmptyStateCard from "@/components/EmptyStateCard";
 import SectionTitle from "@/components/SectionTitle";
 import SurfaceCard from "@/components/SurfaceCard";
+import NoticeCard from "@/components/NoticeCard";
+import Reveal from "@/components/Reveal";
 import { createClient } from "@/lib/supabase-browser";
 import { joinKeywords } from "@/lib/helpers";
 
@@ -303,176 +305,186 @@ export default function WritePage() {
   return (
     <PageContainer>
       <div className="mx-auto max-w-4xl">
-        <SurfaceCard className="soft-grid rounded-[32px] p-8 sm:p-10">
-          <SectionTitle
-            eyebrow="Daily Entry"
-            title="今日记录"
-            description="写下一点今天的情绪、近况和没有说出口的话。对方不会直接看见原文。"
-          />
-        </SurfaceCard>
+        <Reveal>
+          <SurfaceCard className="soft-grid rounded-[32px] p-8 sm:p-10" hover={false}>
+            <SectionTitle
+              eyebrow="Daily Entry"
+              title="今日记录"
+              description="写下一点今天的情绪、近况和没有说出口的话。对方不会直接看见原文。"
+            />
+          </SurfaceCard>
+        </Reveal>
 
         {!todayEntry ? (
-          <SurfaceCard className="mt-8 p-6">
-            <form onSubmit={handleCreate}>
-              <label className="mb-2 block text-sm text-zinc-300">今日情绪</label>
-              <select
-                value={mood}
-                onChange={(e) => setMood(e.target.value)}
-                className="input-shell w-full rounded-2xl px-4 py-3"
-              >
-                {moodOptions.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
+          <Reveal delayMs={80}>
+            <SurfaceCard className="mt-8 p-6">
+              <form onSubmit={handleCreate}>
+                <label className="mb-2 block text-sm text-zinc-300">今日情绪</label>
+                <select
+                  value={mood}
+                  onChange={(e) => setMood(e.target.value)}
+                  className="input-shell w-full rounded-2xl px-4 py-3"
+                >
+                  {moodOptions.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
 
-              <label className="mt-6 mb-2 block text-sm text-zinc-300">今日记录</label>
-              <textarea
-                rows={8}
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="写下一点今天的近况、心情或对某件事的看法……"
-                className="input-shell w-full rounded-2xl px-4 py-3 placeholder:text-zinc-500"
-              />
+                <label className="mt-6 mb-2 block text-sm text-zinc-300">今日记录</label>
+                <textarea
+                  rows={8}
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder="写下一点今天的近况、心情或对某件事的看法……"
+                  className="input-shell w-full rounded-2xl px-4 py-3 placeholder:text-zinc-500"
+                />
 
-              <label className="mt-6 mb-2 block text-sm text-zinc-300">今日关键词</label>
-              <input
-                type="text"
-                value={keywordsInput}
-                onChange={(e) => setKeywordsInput(e.target.value)}
-                placeholder="例如：工作, 雨天, 惦记"
-                className="input-shell w-full rounded-2xl px-4 py-3 placeholder:text-zinc-500"
-              />
+                <label className="mt-6 mb-2 block text-sm text-zinc-300">今日关键词</label>
+                <input
+                  type="text"
+                  value={keywordsInput}
+                  onChange={(e) => setKeywordsInput(e.target.value)}
+                  placeholder="例如：工作, 雨天, 惦记"
+                  className="input-shell w-full rounded-2xl px-4 py-3 placeholder:text-zinc-500"
+                />
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="primary-button mt-6 rounded-full px-6 py-3 text-sm font-medium disabled:opacity-60"
-              >
-                {loading ? "提交中..." : "提交今天的记录"}
-              </button>
-            </form>
-          </SurfaceCard>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="primary-button mt-6 rounded-full px-6 py-3 text-sm font-medium disabled:opacity-60"
+                >
+                  {loading ? "提交中..." : "提交今天的记录"}
+                </button>
+              </form>
+            </SurfaceCard>
+          </Reveal>
         ) : (
           <>
-            <SurfaceCard className="mt-8 p-6">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">
-                    Today's Entry
-                  </p>
-                  <h2 className="mt-2 text-xl font-medium text-white">
-                    你今天已经写过记录了
-                  </h2>
-                  <p className="mt-3 text-sm leading-7 text-zinc-400">
-                    你可以查看、修改或删除今天的记录。
-                  </p>
-                </div>
+            <Reveal delayMs={80}>
+              <SurfaceCard className="mt-8 p-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">
+                      Today&apos;s Entry
+                    </p>
+                    <h2 className="mt-2 text-xl font-medium text-white">
+                      你今天已经写过记录了
+                    </h2>
+                    <p className="mt-3 text-sm leading-7 text-zinc-400">
+                      你可以查看、修改或删除今天的记录。
+                    </p>
+                  </div>
 
-                <div className="flex flex-wrap gap-3">
-                  {!editing ? (
-                    <button
-                      onClick={startEdit}
-                      className="secondary-button rounded-full px-5 py-3 text-sm"
-                    >
-                      编辑记录
-                    </button>
-                  ) : (
-                    <button
-                      onClick={cancelEdit}
-                      className="secondary-button rounded-full px-5 py-3 text-sm"
-                    >
-                      取消编辑
-                    </button>
-                  )}
+                  <div className="flex flex-wrap gap-3">
+                    {!editing ? (
+                      <button
+                        onClick={startEdit}
+                        className="secondary-button rounded-full px-5 py-3 text-sm"
+                      >
+                        编辑记录
+                      </button>
+                    ) : (
+                      <button
+                        onClick={cancelEdit}
+                        className="secondary-button rounded-full px-5 py-3 text-sm"
+                      >
+                        取消编辑
+                      </button>
+                    )}
 
-                  <button
-                    onClick={handleDelete}
-                    disabled={deleting}
-                    className="rounded-full border border-red-900/60 bg-red-950/30 px-5 py-3 text-sm text-red-200 transition hover:bg-red-950/45 disabled:opacity-60"
-                  >
-                    {deleting ? "删除中..." : "删除记录"}
-                  </button>
+                    <button
+                      onClick={handleDelete}
+                      disabled={deleting}
+                      className="rounded-full border border-red-900/60 bg-red-950/30 px-5 py-3 text-sm text-red-200 transition hover:bg-red-950/45 disabled:opacity-60"
+                    >
+                      {deleting ? "删除中..." : "删除记录"}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </SurfaceCard>
+              </SurfaceCard>
+            </Reveal>
 
             {!editing ? (
-              <SurfaceCard className="mt-6 p-6">
-                <div className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
-                  <p className="text-sm">
-                    <span className="text-zinc-500">日期：</span> {todayEntry.entry_date}
-                  </p>
-                  <p className="text-sm">
-                    <span className="text-zinc-500">情绪：</span> {todayEntry.mood}
-                  </p>
-                  <p className="text-sm">
-                    <span className="text-zinc-500">关键词：</span>{" "}
-                    {todayEntry.keywords && todayEntry.keywords.length > 0
-                      ? todayEntry.keywords.join(", ")
-                      : "无"}
-                  </p>
-                  <p className="text-sm whitespace-pre-wrap leading-7 text-zinc-200">
-                    <span className="text-zinc-500">内容：</span> {todayEntry.content}
-                  </p>
-                </div>
-              </SurfaceCard>
+              <Reveal delayMs={120}>
+                <SurfaceCard className="mt-6 p-6">
+                  <div className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+                    <p className="text-sm">
+                      <span className="text-zinc-500">日期：</span> {todayEntry.entry_date}
+                    </p>
+                    <p className="text-sm">
+                      <span className="text-zinc-500">情绪：</span> {todayEntry.mood}
+                    </p>
+                    <p className="text-sm">
+                      <span className="text-zinc-500">关键词：</span>{" "}
+                      {todayEntry.keywords && todayEntry.keywords.length > 0
+                        ? todayEntry.keywords.join(", ")
+                        : "无"}
+                    </p>
+                    <p className="text-sm whitespace-pre-wrap leading-7 text-zinc-200">
+                      <span className="text-zinc-500">内容：</span> {todayEntry.content}
+                    </p>
+                  </div>
+                </SurfaceCard>
+              </Reveal>
             ) : (
-              <SurfaceCard className="mt-6 p-6">
-                <form onSubmit={handleUpdate}>
-                  <label className="mb-2 block text-sm text-zinc-300">今日情绪</label>
-                  <select
-                    value={mood}
-                    onChange={(e) => setMood(e.target.value)}
-                    className="input-shell w-full rounded-2xl px-4 py-3"
-                  >
-                    {moodOptions.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
+              <Reveal delayMs={120}>
+                <SurfaceCard className="mt-6 p-6">
+                  <form onSubmit={handleUpdate}>
+                    <label className="mb-2 block text-sm text-zinc-300">今日情绪</label>
+                    <select
+                      value={mood}
+                      onChange={(e) => setMood(e.target.value)}
+                      className="input-shell w-full rounded-2xl px-4 py-3"
+                    >
+                      {moodOptions.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
 
-                  <label className="mt-6 mb-2 block text-sm text-zinc-300">今日记录</label>
-                  <textarea
-                    rows={8}
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    className="input-shell w-full rounded-2xl px-4 py-3"
-                  />
+                    <label className="mt-6 mb-2 block text-sm text-zinc-300">今日记录</label>
+                    <textarea
+                      rows={8}
+                      value={content}
+                      onChange={(e) => setContent(e.target.value)}
+                      className="input-shell w-full rounded-2xl px-4 py-3"
+                    />
 
-                  <label className="mt-6 mb-2 block text-sm text-zinc-300">今日关键词</label>
-                  <input
-                    type="text"
-                    value={keywordsInput}
-                    onChange={(e) => setKeywordsInput(e.target.value)}
-                    className="input-shell w-full rounded-2xl px-4 py-3"
-                  />
+                    <label className="mt-6 mb-2 block text-sm text-zinc-300">今日关键词</label>
+                    <input
+                      type="text"
+                      value={keywordsInput}
+                      onChange={(e) => setKeywordsInput(e.target.value)}
+                      className="input-shell w-full rounded-2xl px-4 py-3"
+                    />
 
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="primary-button mt-6 rounded-full px-6 py-3 text-sm font-medium disabled:opacity-60"
-                  >
-                    {loading ? "保存中..." : "保存修改"}
-                  </button>
-                </form>
-              </SurfaceCard>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="primary-button mt-6 rounded-full px-6 py-3 text-sm font-medium disabled:opacity-60"
+                    >
+                      {loading ? "保存中..." : "保存修改"}
+                    </button>
+                  </form>
+                </SurfaceCard>
+              </Reveal>
             )}
           </>
         )}
 
         {errorMessage ? (
-          <div className="mt-6 rounded-2xl border border-red-900/60 bg-red-950/40 p-5 text-red-200">
+          <NoticeCard tone="error" className="mt-6">
             {errorMessage}
-          </div>
+          </NoticeCard>
         ) : null}
 
         {message ? (
-          <div className="mt-6 rounded-2xl border border-emerald-900/60 bg-emerald-950/30 p-5 text-emerald-200">
+          <NoticeCard tone="success" className="mt-6">
             {message}
-          </div>
+          </NoticeCard>
         ) : null}
       </div>
     </PageContainer>
