@@ -2,9 +2,11 @@ import PageContainer from "@/components/PageContainer";
 import EmptyStateCard from "@/components/EmptyStateCard";
 import SectionTitle from "@/components/SectionTitle";
 import StatusPill from "@/components/StatusPill";
-import SurfaceCard from "@/components/SurfaceCard";
 import SoilScene from "@/components/SoilScene";
 import Reveal from "@/components/Reveal";
+import GardenStatusMatrix from "@/components/GardenStatusMatrix";
+import GardenInsightPanel from "@/components/GardenInsightPanel";
+import GardenTrendPanel from "@/components/GardenTrendPanel";
 import { buildGardenVisualState } from "@/lib/garden-visual";
 import { getCurrentGardenOrThrow } from "@/lib/garden-server";
 
@@ -50,151 +52,205 @@ export default async function GardenPage() {
 
     return (
       <PageContainer>
-        <div className="mx-auto max-w-6xl">
+        <div className="mx-auto max-w-7xl garden-shell">
           <Reveal>
-            <SurfaceCard className="soft-grid rounded-[32px] p-8 sm:p-10" hover={false}>
-              <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <section className="garden-hero-panel p-8 sm:p-10 lg:p-12">
+              <div className="garden-orb garden-orb-a" />
+              <div className="garden-orb garden-orb-b" />
+              <div className="garden-orb garden-orb-c" />
+
+              <div className="grid gap-8 lg:grid-cols-[1.08fr_0.92fr] lg:items-end">
                 <div>
-                  <StatusPill>Common Soil Status</StatusPill>
-                  <SectionTitle
-                    title={garden.name ?? "共土"}
-                    description={
-                      latestSummary?.garden_change_text ??
-                      "今天还没有完成结算，共土暂时保持安静。"
-                    }
-                  />
-                  <p className="mt-2 max-w-2xl text-sm text-zinc-400">
+                  <StatusPill>Common Soil Scene</StatusPill>
+                  <div className="mt-4">
+                    <SectionTitle
+                      title={garden.name ?? "共土"}
+                      description={
+                        latestSummary?.garden_change_text ??
+                        "今天还没有完成结算，这片共土暂时维持安静。"
+                      }
+                    />
+                  </div>
+
+                  <p className="mt-5 max-w-3xl garden-copy">
                     {latestSummary?.ai_observation_text ??
-                      "等双方都写下今日记录后，这里会出现每日观察。"}
+                      "当双方都写下今日记录并完成结算后，这里会开始出现属于这片共土的观察、温度与生长变化。"}
                   </p>
+
+                  <div className="mt-8 flex flex-wrap gap-3">
+                    <a
+                      href="/write"
+                      className="secondary-button rounded-full px-5 py-3 text-sm"
+                    >
+                      去写今日记录
+                    </a>
+                    <a
+                      href="/settle"
+                      className="primary-button rounded-full px-5 py-3 text-sm font-medium"
+                    >
+                      去执行结算
+                    </a>
+                    <a
+                      href="/timeline"
+                      className="secondary-button rounded-full px-5 py-3 text-sm"
+                    >
+                      查看成长时间线
+                    </a>
+                  </div>
+
+                  <div className="mt-8 grid gap-4 sm:grid-cols-3">
+                    <div className="garden-mini-card">
+                      <p className="garden-label">今日状态</p>
+                      <p className="garden-value">
+                        {latestSummary?.garden_change_type ?? "waiting"}
+                      </p>
+                    </div>
+
+                    <div className="garden-mini-card">
+                      <p className="garden-label">最近结算日</p>
+                      <p className="garden-value">
+                        {latestSummary?.summary_date ?? "暂无"}
+                      </p>
+                    </div>
+
+                    <div className="garden-mini-card">
+                      <p className="garden-label">本周记录数</p>
+                      <p className="garden-value">{recentSummaries.length}</p>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex gap-3">
-                  <a
-                    href="/write"
-                    className="secondary-button rounded-full px-5 py-3 text-sm"
-                  >
-                    去写今日记录
-                  </a>
-                  <a
-                    href="/settle"
-                    className="primary-button rounded-full px-5 py-3 text-sm font-medium"
-                  >
-                    去执行结算
-                  </a>
+                <div className="rounded-[30px] border border-cyan-400/10 bg-[linear-gradient(to_bottom,rgba(10,18,31,0.70),rgba(5,9,16,0.90))] p-4">
+                  <SoilScene
+                    leafCount={visualState.leafCount}
+                    flowerCount={visualState.flowerCount}
+                    lightLevel={visualState.lightLevel}
+                    mistLevel={visualState.mistLevel}
+                    fireflyCount={visualState.fireflyCount}
+                    waterGlow={visualState.waterGlow}
+                    title={
+                      latestSummary?.garden_change_text ?? "等待今日结算后生成共土变化"
+                    }
+                    subtitle={latestSummary?.garden_change_type ?? "soil_waiting"}
+                  />
                 </div>
               </div>
-            </SurfaceCard>
+            </section>
           </Reveal>
 
-          <div className="mt-8 grid gap-6 lg:grid-cols-[2fr_1fr]">
+          <div className="mt-8 grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
             <div className="space-y-6">
               <Reveal delayMs={80}>
-                <SurfaceCard className="p-6">
-                  <div className="rounded-[28px] border border-cyan-400/10 bg-[linear-gradient(to_bottom,rgba(21,30,50,0.55),rgba(7,10,16,0.88))] p-4">
-                    <SoilScene
+                <section className="garden-hero-panel p-6 sm:p-8">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="garden-label">Environmental Matrix</p>
+                      <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white">
+                        当前环境状态
+                      </h2>
+                    </div>
+
+                    <div className="rounded-full border border-cyan-400/15 bg-cyan-400/8 px-3 py-1 text-xs tracking-[0.18em] text-cyan-200/80 uppercase">
+                      Live State
+                    </div>
+                  </div>
+
+                  <div className="mt-6">
+                    <GardenStatusMatrix
+                      soilState={latestSummary?.soil_state}
+                      lightState={latestSummary?.light_state}
+                      vitalityState={latestSummary?.vitality_state}
+                      connectionState={latestSummary?.connection_state}
+                    />
+                  </div>
+                </section>
+              </Reveal>
+
+              <Reveal delayMs={140}>
+                <section className="garden-hero-panel p-6 sm:p-8">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="garden-label">Interpretation Layer</p>
+                      <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white">
+                        今日关系观察
+                      </h2>
+                    </div>
+                  </div>
+
+                  <div className="mt-6">
+                    <GardenInsightPanel
+                      relationshipWeather={latestSummary?.relationship_weather}
+                      sharedTheme={latestSummary?.shared_theme}
+                      symbolicSuggestion={latestSummary?.symbolic_suggestion}
+                      gentleAction={latestSummary?.gentle_action}
+                    />
+                  </div>
+                </section>
+              </Reveal>
+            </div>
+
+            <div className="space-y-6">
+              <Reveal delayMs={100}>
+                <section className="garden-hero-panel p-6 sm:p-8">
+                  <p className="garden-label">Growth Reading</p>
+                  <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white">
+                    生长信号
+                  </h2>
+                  <p className="mt-4 garden-copy">
+                    这部分不是给关系打分，而是把最近几天累积下来的视觉倾向读出来。它们决定这片共土看起来更明亮、更潮湿、更有生机，还是更安静、更慢、更克制。
+                  </p>
+
+                  <div className="mt-6">
+                    <GardenTrendPanel
                       leafCount={visualState.leafCount}
                       flowerCount={visualState.flowerCount}
                       lightLevel={visualState.lightLevel}
                       mistLevel={visualState.mistLevel}
                       fireflyCount={visualState.fireflyCount}
                       waterGlow={visualState.waterGlow}
-                      title={
-                        latestSummary?.garden_change_text ?? "等待今日结算后生成共土变化"
-                      }
-                      subtitle={latestSummary?.garden_change_type ?? "soil_waiting"}
                     />
                   </div>
-                </SurfaceCard>
-              </Reveal>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <Reveal delayMs={120}>
-                  <SurfaceCard className="p-5">
-                    <p className="text-sm text-zinc-500">今日关系气候</p>
-                    <p className="mt-3 leading-7 text-zinc-200">
-                      {latestSummary?.relationship_weather ?? "还没有生成今日关系气候。"}
-                    </p>
-                  </SurfaceCard>
-                </Reveal>
-
-                <Reveal delayMs={160}>
-                  <SurfaceCard className="p-5">
-                    <p className="text-sm text-zinc-500">今日共振主题</p>
-                    <p className="mt-3 leading-7 text-zinc-200">
-                      {latestSummary?.shared_theme ?? "还没有生成今日共振主题。"}
-                    </p>
-                  </SurfaceCard>
-                </Reveal>
-
-                <Reveal delayMs={200}>
-                  <SurfaceCard className="p-5">
-                    <p className="text-sm text-zinc-500">隐喻建议</p>
-                    <p className="mt-3 leading-7 text-zinc-200">
-                      {latestSummary?.symbolic_suggestion ?? "今天还没有收到来自共土的轻声提醒。"}
-                    </p>
-                  </SurfaceCard>
-                </Reveal>
-
-                <Reveal delayMs={240}>
-                  <SurfaceCard className="p-5">
-                    <p className="text-sm text-zinc-500">轻动作建议</p>
-                    <p className="mt-3 leading-7 text-zinc-200">
-                      {latestSummary?.gentle_action ?? "今天还没有生成轻动作建议。"}
-                    </p>
-                  </SurfaceCard>
-                </Reveal>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <Reveal delayMs={100}>
-                <SurfaceCard className="p-5">
-                  <p className="text-sm text-zinc-500">土壤</p>
-                  <p className="mt-3 text-lg text-cyan-200/90">
-                    {latestSummary?.soil_state ?? "未知"}
-                  </p>
-                </SurfaceCard>
-              </Reveal>
-
-              <Reveal delayMs={140}>
-                <SurfaceCard className="p-5">
-                  <p className="text-sm text-zinc-500">光照</p>
-                  <p className="mt-3 text-lg text-teal-200/90">
-                    {latestSummary?.light_state ?? "未知"}
-                  </p>
-                </SurfaceCard>
+                </section>
               </Reveal>
 
               <Reveal delayMs={180}>
-                <SurfaceCard className="p-5">
-                  <p className="text-sm text-zinc-500">生机</p>
-                  <p className="mt-3 text-lg text-emerald-200/90">
-                    {latestSummary?.vitality_state ?? "未知"}
+                <section className="garden-hero-panel p-6 sm:p-8">
+                  <p className="garden-label">Scene Direction</p>
+                  <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white">
+                    接下来它该变得更真实
+                  </h2>
+                  <p className="mt-4 garden-copy">
+                    你现在看到的是共土的第一代主场景结构：状态、观察、趋势与视觉已经被组织起来。下一步就可以把这套结构替换成真正的分层庭院素材，让环境变化不只停留在描述里，而是直接被看见。
                   </p>
-                </SurfaceCard>
-              </Reveal>
 
-              <Reveal delayMs={220}>
-                <SurfaceCard className="p-5">
-                  <p className="text-sm text-zinc-500">连结</p>
-                  <p className="mt-3 text-lg text-amber-100/90">
-                    {latestSummary?.connection_state ?? "未知"}
-                  </p>
-                </SurfaceCard>
-              </Reveal>
-
-              <Reveal delayMs={260}>
-                <SurfaceCard className="p-5">
-                  <p className="text-sm text-zinc-500">最近7天生长</p>
-                  <div className="mt-3 space-y-2 text-sm text-zinc-300">
-                    <p>叶片：{visualState.leafCount}</p>
-                    <p>花朵：{visualState.flowerCount}</p>
-                    <p>光感：{visualState.lightLevel}</p>
-                    <p>雾感：{visualState.mistLevel}</p>
-                    <p>萤火：{visualState.fireflyCount}</p>
+                  <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                    <div className="garden-mini-card">
+                      <p className="garden-label">当前阶段</p>
+                      <p className="garden-value">Structured Scene UI</p>
+                    </div>
+                    <div className="garden-mini-card">
+                      <p className="garden-label">下一阶段</p>
+                      <p className="garden-value">Layered Visual Garden</p>
+                    </div>
                   </div>
-                </SurfaceCard>
+
+                  <div className="mt-8 garden-soft-line" />
+
+                  <div className="mt-6 flex flex-wrap gap-3">
+                    <a
+                      href="/timeline"
+                      className="secondary-button rounded-full px-5 py-3 text-sm"
+                    >
+                      查看时间线
+                    </a>
+                    <a
+                      href="/settings"
+                      className="secondary-button rounded-full px-5 py-3 text-sm"
+                    >
+                      共土设置
+                    </a>
+                  </div>
+                </section>
               </Reveal>
             </div>
           </div>

@@ -11,6 +11,20 @@ export default function FullPageScroll({ children }: FullPageScrollProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const isLockedRef = useRef(false);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    function handleResize() {
+      setIsDesktop(window.innerWidth >= 1024);
+    }
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
 
   useEffect(() => {
     const maybeContainer = containerRef.current;
@@ -19,6 +33,10 @@ export default function FullPageScroll({ children }: FullPageScrollProps) {
     const container: HTMLDivElement = maybeContainer;
 
     container.scrollTo({ top: 0, behavior: "auto" });
+
+    if (!isDesktop) {
+      return;
+    }
 
     const sections = Array.from(
       container.querySelectorAll<HTMLElement>("[data-fullpage-section]")
@@ -75,31 +93,36 @@ export default function FullPageScroll({ children }: FullPageScrollProps) {
       container.removeEventListener("wheel", handleWheel);
       container.removeEventListener("scroll", handleScroll);
     };
-  }, []);
+  }, [isDesktop]);
 
   const count = Array.isArray(children) ? children.length : 1;
 
   return (
     <>
-      <ScreenDots
-        total={count}
-        current={currentIndex}
-        onJump={(index) => {
-          const container = containerRef.current;
-          if (!container) return;
+      {isDesktop ? (
+        <ScreenDots
+          total={count}
+          current={currentIndex}
+          onJump={(index) => {
+            const container = containerRef.current;
+            if (!container) return;
 
-          const sections = Array.from(
-            container.querySelectorAll<HTMLElement>("[data-fullpage-section]")
-          );
-          sections[index]?.scrollIntoView({
-            behavior: "smooth",
-            block: "start",
-          });
-          setCurrentIndex(index);
-        }}
-      />
+            const sections = Array.from(
+              container.querySelectorAll<HTMLElement>("[data-fullpage-section]")
+            );
+            sections[index]?.scrollIntoView({
+              behavior: "smooth",
+              block: "start",
+            });
+            setCurrentIndex(index);
+          }}
+        />
+      ) : null}
 
-      <div ref={containerRef} className="fullpage-shell">
+      <div
+        ref={containerRef}
+        className={isDesktop ? "fullpage-shell" : "fullpage-shell-mobile"}
+      >
         {children}
       </div>
     </>

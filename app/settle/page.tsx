@@ -19,6 +19,11 @@ type SettleResult = {
   relationshipWeather: string;
   sharedTheme: string;
   gentleAction: string;
+  reflectionForA: string;
+  reflectionForB: string;
+  encouragementForA: string;
+  encouragementForB: string;
+  dailyLetter: string;
 };
 
 type AccessState =
@@ -90,6 +95,11 @@ export default function SettlePage() {
         relationshipWeather: data.summary.relationship_weather,
         sharedTheme: data.summary.shared_theme,
         gentleAction: data.summary.gentle_action,
+        reflectionForA: data.summary.reflection_for_a,
+        reflectionForB: data.summary.reflection_for_b,
+        encouragementForA: data.summary.encouragement_for_a,
+        encouragementForB: data.summary.encouragement_for_b,
+        dailyLetter: data.summary.daily_letter,
       });
     } catch (error) {
       const message =
@@ -143,13 +153,13 @@ export default function SettlePage() {
 
   return (
     <PageContainer>
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-5xl">
         <Reveal>
           <SurfaceCard className="soft-grid rounded-[32px] p-8 sm:p-10" hover={false}>
             <SectionTitle
               eyebrow="Daily Settlement"
               title="每日结算"
-              description="这里只会对当前登录用户所属共土执行当天结算。"
+              description="今天的共土变化、关系观察、个体被看见之处，以及一段写给今天的小文章。"
             />
           </SurfaceCard>
         </Reveal>
@@ -165,7 +175,7 @@ export default function SettlePage() {
                   执行今天的结算
                 </h2>
                 <p className="mt-3 text-sm leading-7 text-zinc-400">
-                  当双方都写完今日记录后，这里会生成今天的共土变化和关系层观察。
+                  当双方都写完今日记录后，这里会生成今天的共土变化与更完整的关系观察。
                 </p>
               </div>
 
@@ -199,7 +209,42 @@ export default function SettlePage() {
                 </NoticeCard>
               ) : null}
 
-              <div className="mt-5 space-y-3 rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+              <div className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
+                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                  Daily Letter
+                </p>
+                <p className="mt-4 text-base leading-8 text-zinc-200">
+                  {result.dailyLetter}
+                </p>
+              </div>
+
+              <div className="mt-6 grid gap-4 md:grid-cols-2">
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+                  <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                    给 A 的今日观察
+                  </p>
+                  <p className="mt-3 text-sm leading-7 text-zinc-200">
+                    {result.reflectionForA}
+                  </p>
+                  <p className="mt-4 text-sm leading-7 text-emerald-200">
+                    {result.encouragementForA}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+                  <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                    给 B 的今日观察
+                  </p>
+                  <p className="mt-3 text-sm leading-7 text-zinc-200">
+                    {result.reflectionForB}
+                  </p>
+                  <p className="mt-4 text-sm leading-7 text-emerald-200">
+                    {result.encouragementForB}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 space-y-3 rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
                 <p className="text-sm">
                   <span className="text-zinc-500">日期：</span> {result.summaryDate}
                 </p>
