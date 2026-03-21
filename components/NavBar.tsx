@@ -16,9 +16,12 @@ const navItems = [
 
 export default function NavBar() {
   return (
-    <header className="sticky top-0 z-50 border-b border-zinc-800/80 bg-zinc-950/75 backdrop-blur-2xl">
+    <header className="sticky top-0 z-50 border-b border-zinc-800/80 bg-zinc-950/65 backdrop-blur-2xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-        <a href="/" className="text-sm font-semibold tracking-[0.28em] text-white">
+        <a
+          href="/"
+          className="text-sm font-semibold tracking-[0.30em] text-white transition hover:opacity-85"
+        >
           COMMON SOIL
         </a>
 
