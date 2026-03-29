@@ -20,6 +20,13 @@ type EntryRecord = {
   keywords: string[] | null;
 };
 
+type TranslationRecord = {
+  id: string;
+  entry_id: string;
+  raw_message: string;
+  translated_message: string;
+};
+
 const moodOptions = [
   "平静",
   "疲惫",
@@ -48,8 +55,15 @@ export default function WritePage() {
   const [todayEntry, setTodayEntry] = useState<EntryRecord | null>(null);
   const [editing, setEditing] = useState(false);
 
+  const [rawMessage, setRawMessage] = useState("");
+  const [translatedMessage, setTranslatedMessage] = useState("");
+  const [savedTranslation, setSavedTranslation] = useState<TranslationRecord | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [translating, setTranslating] = useState(false);
+  const [savingTranslation, setSavingTranslation] = useState(false);
+
   const [errorMessage, setErrorMessage] = useState("");
   const [message, setMessage] = useState("");
 
@@ -96,6 +110,19 @@ export default function WritePage() {
         setMood(entry.mood);
         setContent(entry.content);
         setKeywordsInput(entry.keywords?.join(", ") ?? "");
+
+        const { data: translationData } = await supabase
+          .from("entry_translations")
+          .select("*")
+          .eq("entry_id", entry.id)
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (translationData) {
+          setSavedTranslation(translationData as TranslationRecord);
+          setRawMessage((translationData as TranslationRecord).raw_message);
+          setTranslatedMessage((translationData as TranslationRecord).translated_message);
+        }
       }
     }
 
@@ -230,6 +257,9 @@ export default function WritePage() {
       setMood("平静");
       setContent("");
       setKeywordsInput("");
+      setRawMessage("");
+      setTranslatedMessage("");
+      setSavedTranslation(null);
       setEditing(false);
       setMessage("今天的记录已删除，现在可以重新填写。");
     } catch (error) {
@@ -238,6 +268,106 @@ export default function WritePage() {
       );
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function handleTranslate() {
+    setErrorMessage("");
+    setMessage("");
+
+    if (!rawMessage.trim()) {
+      setErrorMessage("请先写下今天想对对方说的话");
+      return;
+    }
+
+    try {
+      setTranslating(true);
+
+      const response = await fetch("/api/translate-message", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          rawMessage,
+          mood,
+          entryContent: content,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "转译失败");
+      }
+
+      setTranslatedMessage(data.translatedMessage);
+      setMessage("已生成一版更柔和的表达。");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "转译时发生未知错误"
+      );
+    } finally {
+      setTranslating(false);
+    }
+  }
+
+  async function handleSaveTranslation() {
+    if (accessState.status !== "ready" || !todayEntry) {
+      setErrorMessage("请先保存今天的记录，再保存转译内容");
+      return;
+    }
+
+    if (!rawMessage.trim() || !translatedMessage.trim()) {
+      setErrorMessage("请先生成转译内容");
+      return;
+    }
+
+    setErrorMessage("");
+    setMessage("");
+
+    try {
+      setSavingTranslation(true);
+
+      if (savedTranslation) {
+        const { data, error } = await supabase
+          .from("entry_translations")
+          .update({
+            raw_message: rawMessage.trim(),
+            translated_message: translatedMessage.trim(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", savedTranslation.id)
+          .select()
+          .single();
+
+        if (error) throw new Error(error.message);
+        setSavedTranslation(data as TranslationRecord);
+      } else {
+        const { data, error } = await supabase
+          .from("entry_translations")
+          .insert({
+            garden_id: accessState.gardenId,
+            entry_id: todayEntry.id,
+            user_id: accessState.userId,
+            raw_message: rawMessage.trim(),
+            translated_message: translatedMessage.trim(),
+            is_shared: true,
+          })
+          .select()
+          .single();
+
+        if (error) throw new Error(error.message);
+        setSavedTranslation(data as TranslationRecord);
+      }
+
+      setMessage("转译内容已保存。");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "保存转译内容时发生未知错误"
+      );
+    } finally {
+      setSavingTranslation(false);
     }
   }
 
@@ -474,6 +604,77 @@ export default function WritePage() {
             )}
           </>
         )}
+
+        <Reveal delayMs={160}>
+          <SurfaceCard className="mt-6 p-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">
+                  Gentle Translation
+                </p>
+                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+                  想说的话，换一种方式说
+                </h3>
+                <p className="mt-3 max-w-2xl text-sm leading-7 text-zinc-400">
+                  你可以把今天想对对方说的话写下来，AI 会帮你转成更柔和、也更容易被接住的表达。
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <label className="mb-2 block text-sm text-zinc-300">原始想法</label>
+              <textarea
+                rows={5}
+                value={rawMessage}
+                onChange={(e) => setRawMessage(e.target.value)}
+                placeholder="例如：我今天其实有点失落，只是没太说出来……"
+                className="input-shell w-full rounded-2xl px-4 py-3 placeholder:text-zinc-500"
+              />
+
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={handleTranslate}
+                  disabled={translating}
+                  className="secondary-button rounded-full px-5 py-3 text-sm disabled:opacity-60"
+                >
+                  {translating ? "转译中..." : "AI 转译"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveTranslation}
+                  disabled={savingTranslation || !todayEntry || !translatedMessage}
+                  className="primary-button rounded-full px-5 py-3 text-sm font-medium disabled:opacity-60"
+                >
+                  {savingTranslation ? "保存中..." : "保存转译"}
+                </button>
+              </div>
+            </div>
+
+            {translatedMessage ? (
+              <div className="mt-6 rounded-2xl border border-cyan-900/40 bg-cyan-950/20 p-5">
+                <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/70">
+                  转译结果
+                </p>
+                <p className="mt-3 text-sm leading-8 text-cyan-50">
+                  {translatedMessage}
+                </p>
+              </div>
+            ) : null}
+
+            {savedTranslation ? (
+              <div className="mt-4 rounded-2xl border border-emerald-900/40 bg-emerald-950/20 p-5">
+                <p className="text-xs uppercase tracking-[0.2em] text-emerald-300/70">
+                  已保存
+                </p>
+                <p className="mt-3 text-sm leading-8 text-emerald-50">
+                  这段转译内容已经保存，可在“我的记录”里回看。
+                </p>
+              </div>
+            ) : null}
+          </SurfaceCard>
+        </Reveal>
 
         {errorMessage ? (
           <NoticeCard tone="error" className="mt-6">
