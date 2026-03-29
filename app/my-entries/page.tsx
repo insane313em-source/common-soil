@@ -18,8 +18,8 @@ type SummaryRecord = {
   garden_change_text: string | null;
 };
 
-type TranslationRecord = {
-  entry_id: string;
+type DeliveryRecord = {
+  delivery_date: string;
   raw_message: string;
   translated_message: string;
 };
@@ -51,15 +51,15 @@ export default async function MyEntriesPage() {
       summaries.map((item) => [item.summary_date, item.garden_change_text])
     );
 
-    const { data: translationsData } = await supabase
-      .from("entry_translations")
-      .select("entry_id, raw_message, translated_message")
+    const { data: deliveriesData } = await supabase
+      .from("daily_deliveries")
+      .select("delivery_date, raw_message, translated_message")
       .eq("garden_id", garden.id)
       .eq("user_id", user.id);
 
-    const translations = (translationsData ?? []) as TranslationRecord[];
-    const translationMap = new Map(
-      translations.map((item) => [item.entry_id, item])
+    const deliveries = (deliveriesData ?? []) as DeliveryRecord[];
+    const deliveryMap = new Map(
+      deliveries.map((item) => [item.delivery_date, item])
     );
 
     return (
@@ -79,7 +79,7 @@ export default async function MyEntriesPage() {
             {entries.length > 0 ? (
               entries.map((entry, index) => {
                 const settlementText = summaryMap.get(entry.entry_date);
-                const translation = translationMap.get(entry.id);
+                const delivery = deliveryMap.get(entry.entry_date);
 
                 return (
                   <Reveal key={entry.id} delayMs={index * 40}>
@@ -119,14 +119,14 @@ export default async function MyEntriesPage() {
                         </p>
                       </details>
 
-                      {translation ? (
+                      {delivery ? (
                         <>
                           <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/80 p-5">
                             <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
                               我当天写下的原始转递
                             </p>
                             <p className="mt-3 text-sm leading-8 text-zinc-200">
-                              {translation.raw_message}
+                              {delivery.raw_message}
                             </p>
                           </div>
 
@@ -135,7 +135,7 @@ export default async function MyEntriesPage() {
                               对方看到的版本
                             </p>
                             <p className="mt-3 text-sm leading-8 text-cyan-50">
-                              {translation.translated_message}
+                              {delivery.translated_message}
                             </p>
                           </div>
                         </>

@@ -20,9 +20,11 @@ type EntryRecord = {
   keywords: string[] | null;
 };
 
-type TranslationRecord = {
+type DeliveryRecord = {
   id: string;
-  entry_id: string;
+  garden_id: string;
+  user_id: string;
+  delivery_date: string;
   raw_message: string;
   translated_message: string;
   is_shared: boolean;
@@ -58,7 +60,7 @@ export default function WritePage() {
 
   const [deliveryRawMessage, setDeliveryRawMessage] = useState("");
   const [deliveryTranslatedMessage, setDeliveryTranslatedMessage] = useState("");
-  const [savedDelivery, setSavedDelivery] = useState<TranslationRecord | null>(null);
+  const [savedDelivery, setSavedDelivery] = useState<DeliveryRecord | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -69,7 +71,7 @@ export default function WritePage() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    async function checkAccessAndLoadEntry() {
+    async function checkAccessAndLoadData() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -111,24 +113,25 @@ export default function WritePage() {
         setMood(entry.mood);
         setContent(entry.content);
         setKeywordsInput(entry.keywords?.join(", ") ?? "");
+      }
 
-        const { data: translationData } = await supabase
-          .from("entry_translations")
-          .select("*")
-          .eq("entry_id", entry.id)
-          .eq("user_id", user.id)
-          .maybeSingle();
+      const { data: deliveryData } = await supabase
+        .from("daily_deliveries")
+        .select("*")
+        .eq("garden_id", gardenId)
+        .eq("user_id", user.id)
+        .eq("delivery_date", today)
+        .maybeSingle();
 
-        if (translationData) {
-          const delivery = translationData as TranslationRecord;
-          setSavedDelivery(delivery);
-          setDeliveryRawMessage(delivery.raw_message);
-          setDeliveryTranslatedMessage(delivery.translated_message);
-        }
+      if (deliveryData) {
+        const delivery = deliveryData as DeliveryRecord;
+        setSavedDelivery(delivery);
+        setDeliveryRawMessage(delivery.raw_message);
+        setDeliveryTranslatedMessage(delivery.translated_message);
       }
     }
 
-    checkAccessAndLoadEntry();
+    checkAccessAndLoadData();
   }, [supabase]);
 
   async function handleCreate(e: FormEvent<HTMLFormElement>) {
@@ -259,9 +262,6 @@ export default function WritePage() {
       setMood("平静");
       setContent("");
       setKeywordsInput("");
-      setDeliveryRawMessage("");
-      setDeliveryTranslatedMessage("");
-      setSavedDelivery(null);
       setEditing(false);
       setMessage("今天的记录已删除，现在可以重新填写。");
     } catch (error) {
@@ -278,7 +278,7 @@ export default function WritePage() {
     setMessage("");
 
     if (!deliveryRawMessage.trim()) {
-      setErrorMessage("请先写下今天想让对方看到的话");
+      setErrorMessage("想让对方看到的话不能为空");
       return;
     }
 
@@ -324,12 +324,17 @@ export default function WritePage() {
   }
 
   async function handleSaveDelivery() {
-    if (accessState.status !== "ready" || !todayEntry) {
-      setErrorMessage("请先保存今天的记录，再保存今日转递");
+    if (accessState.status !== "ready") {
+      setErrorMessage("当前无法保存今日转递");
       return;
     }
 
-    if (!deliveryRawMessage.trim() || !deliveryTranslatedMessage.trim()) {
+    if (!deliveryRawMessage.trim()) {
+      setErrorMessage("想让对方看到的话不能为空");
+      return;
+    }
+
+    if (!deliveryTranslatedMessage.trim()) {
       setErrorMessage("请先生成转译后的内容");
       return;
     }
@@ -340,40 +345,32 @@ export default function WritePage() {
     try {
       setSavingDelivery(true);
 
-      if (savedDelivery) {
-        const { data, error } = await supabase
-          .from("entry_translations")
-          .update({
-            raw_message: deliveryRawMessage.trim(),
-            translated_message: deliveryTranslatedMessage.trim(),
-            is_shared: true,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", savedDelivery.id)
-          .select()
-          .single();
+      const today = new Date().toISOString().slice(0, 10);
 
-        if (error) throw new Error(error.message);
-        setSavedDelivery(data as TranslationRecord);
-      } else {
-        const { data, error } = await supabase
-          .from("entry_translations")
-          .insert({
-            garden_id: accessState.gardenId,
-            entry_id: todayEntry.id,
-            user_id: accessState.userId,
-            raw_message: deliveryRawMessage.trim(),
-            translated_message: deliveryTranslatedMessage.trim(),
-            is_shared: true,
-          })
-          .select()
-          .single();
+      const payload = {
+        garden_id: accessState.gardenId,
+        user_id: accessState.userId,
+        delivery_date: today,
+        raw_message: deliveryRawMessage.trim(),
+        translated_message: deliveryTranslatedMessage.trim(),
+        is_shared: true,
+        updated_at: new Date().toISOString(),
+      };
 
-        if (error) throw new Error(error.message);
-        setSavedDelivery(data as TranslationRecord);
+      const { data, error } = await supabase
+        .from("daily_deliveries")
+        .upsert(payload, {
+          onConflict: "garden_id,user_id,delivery_date",
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(error.message);
       }
 
-      setMessage("今日转递已保存并会展示给对方。");
+      setSavedDelivery(data as DeliveryRecord);
+      setMessage("今日转递已保存，并会展示给对方。");
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "保存今日转递时发生未知错误"
@@ -452,7 +449,7 @@ export default function WritePage() {
             <SectionTitle
               eyebrow="Daily Entry"
               title="今日记录"
-              description="记录仍然只属于你自己；今日转递则是你主动想让对方看到的一段话。"
+              description="记录和今日转递已经拆开；没写转递也不影响记录和结算。"
             />
           </SurfaceCard>
         </Reveal>
@@ -628,7 +625,7 @@ export default function WritePage() {
                   今日转递
                 </h3>
                 <p className="mt-3 max-w-2xl text-sm leading-7 text-zinc-400">
-                  这里写的是你今天主动想让对方看到的话。对方不会看到你的原文，只会看到 AI 转译后的版本。
+                  这是独立于记录之外的一段话。你今天就算不写转递，也不会影响记录和结算。
                 </p>
               </div>
             </div>
@@ -656,7 +653,7 @@ export default function WritePage() {
                 <button
                   type="button"
                   onClick={handleSaveDelivery}
-                  disabled={savingDelivery || !todayEntry || !deliveryTranslatedMessage}
+                  disabled={savingDelivery || !deliveryTranslatedMessage}
                   className="primary-button rounded-full px-5 py-3 text-sm font-medium disabled:opacity-60"
                 >
                   {savingDelivery ? "保存中..." : "保存并公开给对方"}

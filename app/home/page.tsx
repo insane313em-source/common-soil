@@ -26,7 +26,7 @@ type DailySummaryRecord = {
   garden_change_text: string | null;
 };
 
-type TranslationRecord = {
+type DeliveryRecord = {
   translated_message: string;
 };
 
@@ -61,29 +61,20 @@ export default async function HomePage() {
 
     const partner = members.find((item) => item.user_id !== user.id);
 
-    let partnerDelivery: TranslationRecord | null = null;
+    let partnerDelivery: DeliveryRecord | null = null;
 
     if (partner) {
-      const { data: partnerTodayEntry } = await supabase
-        .from("daily_entries")
-        .select("id")
+      const { data: partnerTodayDelivery } = await supabase
+        .from("daily_deliveries")
+        .select("translated_message")
         .eq("garden_id", garden.id)
         .eq("user_id", partner.user_id)
-        .eq("entry_date", today)
+        .eq("delivery_date", today)
+        .eq("is_shared", true)
         .maybeSingle();
 
-      if (partnerTodayEntry) {
-        const { data: partnerTranslation } = await supabase
-          .from("entry_translations")
-          .select("translated_message")
-          .eq("entry_id", partnerTodayEntry.id)
-          .eq("user_id", partner.user_id)
-          .eq("is_shared", true)
-          .maybeSingle();
-
-        if (partnerTranslation) {
-          partnerDelivery = partnerTranslation as TranslationRecord;
-        }
+      if (partnerTodayDelivery) {
+        partnerDelivery = partnerTodayDelivery as DeliveryRecord;
       }
     }
 
