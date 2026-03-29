@@ -19,30 +19,30 @@ export async function POST(request: Request) {
 
     if (!rawMessage) {
       return NextResponse.json(
-        { error: "想说的话不能为空" },
+        { error: "想让对方看到的话不能为空" },
         { status: 400 }
       );
     }
 
     const prompt = `
-你是“共土”的委婉转译引擎。
+你是“共土”的今日转递转译引擎。
 
-你的任务：
-把用户今天想对对方说的话，转译成一段更柔和、更容易被接住、但仍然保留原意的表达。
+任务：
+把用户今天想让对方看到的话，转成一段更柔和、有人味，表达可以不委婉，就是把话改的更加动人、但不改变核心意思的表达。
 
 要求：
-1. 不改变核心意思
-2. 不要操控、施压、PUA
-3. 不要过度煽情
-4. 不要写得像道歉模板或鸡汤
-5. 要自然、克制、真诚
-6. 长度控制在 30-90 字
+1. 保留原意，不要歪曲
+2. 不要替用户施压、指责、操控
+3. 不要写得像道歉模板或鸡汤
+4. 要自然、克制、真诚有人味，更加动人
+5. 要像真的会发给对方的一段话
+6. 长度控制在 28-88 字
 7. 直接输出纯文本，不要解释，不要加引号
 
 补充上下文：
 - 当前共土：${garden.name ?? "共土"}
 - 用户今天情绪：${mood || "未提供"}
-- 用户今天记录摘要：${clipText(entryContent, 140) || "未提供"}
+- 用户今天记录摘要：${clipText(entryContent, 120) || "未提供"}
 
 用户原始想说的话：
 ${clipText(rawMessage, 240)}
@@ -54,16 +54,16 @@ ${clipText(rawMessage, 240)}
         {
           role: "system",
           content:
-            "你擅长把直接的话转成更柔和、克制、可被接住的表达。只输出转译后的文本。",
+            "你擅长把直接的话转成更柔和、有人味，表达可以不委婉，就是把话改的更加动人，只输出转译后的文本。",
         },
         {
           role: "user",
           content: prompt,
         },
       ],
-      temperature: 0.7,
+      temperature: 0.65,
       top_p: 0.85,
-      max_completion_tokens: 180,
+      max_completion_tokens: 120,
     });
 
     const translated =

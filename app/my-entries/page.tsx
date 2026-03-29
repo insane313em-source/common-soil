@@ -25,6 +25,7 @@ type DeliveryRecord = {
   delivery_date: string;
   raw_message: string;
   translated_message: string;
+  delivery_mode?: "ai" | "direct";
 };
 
 export default async function MyEntriesPage() {
@@ -56,7 +57,7 @@ export default async function MyEntriesPage() {
 
     const { data: deliveriesData, error: deliveriesError } = await supabase
       .from("daily_deliveries")
-      .select("id, delivery_date, raw_message, translated_message")
+      .select("id, delivery_date, raw_message, translated_message, delivery_mode")
       .eq("garden_id", garden.id)
       .eq("user_id", user.id)
       .order("delivery_date", { ascending: false });
@@ -185,7 +186,9 @@ export default async function MyEntriesPage() {
 
                       <div className="mt-4 rounded-2xl border border-cyan-900/40 bg-cyan-950/20 p-4">
                         <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/70">
-                          对方看到的版本
+                          {delivery.delivery_mode === "direct"
+                            ? "对方看到的原话"
+                            : "对方看到的转译版本"}
                         </p>
                         <p className="mt-3 text-sm leading-8 text-cyan-50">
                           {delivery.translated_message}

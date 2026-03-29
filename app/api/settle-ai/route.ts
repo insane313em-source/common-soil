@@ -109,7 +109,6 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const forceRegenerate = body?.forceRegenerate === true;
 
-    // 这里只读 daily_entries，不读 daily_deliveries
     const { data: todayEntries, error: entriesError } = await supabase
       .from("daily_entries")
       .select("*")

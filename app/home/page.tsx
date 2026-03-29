@@ -30,6 +30,7 @@ type DailySummaryRecord = {
 
 type DeliveryRecord = {
   translated_message: string;
+  delivery_mode?: "ai" | "direct";
 };
 
 export default async function HomePage() {
@@ -67,7 +68,7 @@ export default async function HomePage() {
     if (partner) {
       const { data: partnerTodayDelivery } = await supabase
         .from("daily_deliveries")
-        .select("translated_message")
+        .select("translated_message, delivery_mode")
         .eq("garden_id", garden.id)
         .eq("user_id", partner.user_id)
         .eq("delivery_date", today)
@@ -81,7 +82,7 @@ export default async function HomePage() {
 
     const { data: myDelivery } = await supabase
       .from("daily_deliveries")
-      .select("translated_message")
+      .select("translated_message, delivery_mode")
       .eq("garden_id", garden.id)
       .eq("user_id", user.id)
       .eq("delivery_date", today)

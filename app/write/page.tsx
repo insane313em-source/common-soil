@@ -28,6 +28,7 @@ type DeliveryRecord = {
   raw_message: string;
   translated_message: string;
   is_shared: boolean;
+  delivery_mode: "ai" | "direct";
 };
 
 const moodOptions = [
@@ -61,6 +62,7 @@ export default function WritePage() {
   const [deliveryRawMessage, setDeliveryRawMessage] = useState("");
   const [deliveryTranslatedMessage, setDeliveryTranslatedMessage] = useState("");
   const [savedDelivery, setSavedDelivery] = useState<DeliveryRecord | null>(null);
+  const [deliveryMode, setDeliveryMode] = useState<"ai" | "direct">("ai");
 
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -128,6 +130,7 @@ export default function WritePage() {
         setSavedDelivery(delivery);
         setDeliveryRawMessage(delivery.raw_message);
         setDeliveryTranslatedMessage(delivery.translated_message);
+        setDeliveryMode(delivery.delivery_mode === "direct" ? "direct" : "ai");
       }
     }
 
@@ -313,6 +316,7 @@ export default function WritePage() {
       }
 
       setDeliveryTranslatedMessage(data.translatedMessage);
+      setDeliveryMode("ai");
       setMessage("已生成一版更柔和的转递内容。");
     } catch (error) {
       setErrorMessage(
@@ -334,8 +338,8 @@ export default function WritePage() {
       return;
     }
 
-    if (!deliveryTranslatedMessage.trim()) {
-      setErrorMessage("请先生成转译后的内容");
+    if (deliveryMode === "ai" && !deliveryTranslatedMessage.trim()) {
+      setErrorMessage("当前选择的是 AI 转译模式，请先生成转译后的内容");
       return;
     }
 
@@ -352,7 +356,11 @@ export default function WritePage() {
         user_id: accessState.userId,
         delivery_date: today,
         raw_message: deliveryRawMessage.trim(),
-        translated_message: deliveryTranslatedMessage.trim(),
+        translated_message:
+          deliveryMode === "ai"
+            ? deliveryTranslatedMessage.trim()
+            : deliveryRawMessage.trim(),
+        delivery_mode: deliveryMode,
         is_shared: true,
         updated_at: new Date().toISOString(),
       };
@@ -370,7 +378,11 @@ export default function WritePage() {
       }
 
       setSavedDelivery(data as DeliveryRecord);
-      setMessage("今日转递已保存，并会展示给对方。");
+      setMessage(
+        deliveryMode === "ai"
+          ? "今日转递已保存，对方会看到转译后的版本。"
+          : "今日转递已保存，对方会直接看到你的原话。"
+      );
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "保存今日转递时发生未知错误"
@@ -625,7 +637,7 @@ export default function WritePage() {
                   今日转递
                 </h3>
                 <p className="mt-3 max-w-2xl text-sm leading-7 text-zinc-400">
-                  这是独立于记录之外的一段话。你今天就算不写转递，也不会影响记录和结算。
+                  这是独立于记录之外的一段话。你可以选择直接把原话给对方看，或者先交给 AI 转成更柔和的表达。
                 </p>
               </div>
             </div>
@@ -640,6 +652,32 @@ export default function WritePage() {
                 className="input-shell w-full rounded-2xl px-4 py-3 placeholder:text-zinc-500"
               />
 
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeliveryMode("direct")}
+                  className={`rounded-full px-4 py-2 text-sm transition ${
+                    deliveryMode === "direct"
+                      ? "border border-emerald-400/40 bg-emerald-400/10 text-emerald-200"
+                      : "border border-zinc-700 bg-zinc-900/70 text-zinc-300"
+                  }`}
+                >
+                  直接给对方看原话
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDeliveryMode("ai")}
+                  className={`rounded-full px-4 py-2 text-sm transition ${
+                    deliveryMode === "ai"
+                      ? "border border-cyan-400/40 bg-cyan-400/10 text-cyan-200"
+                      : "border border-zinc-700 bg-zinc-900/70 text-zinc-300"
+                  }`}
+                >
+                  先用 AI 转译
+                </button>
+              </div>
+
               <div className="mt-4 flex flex-wrap gap-3">
                 <button
                   type="button"
@@ -653,7 +691,11 @@ export default function WritePage() {
                 <button
                   type="button"
                   onClick={handleSaveDelivery}
-                  disabled={savingDelivery || !deliveryTranslatedMessage}
+                  disabled={
+                    savingDelivery ||
+                    !deliveryRawMessage.trim() ||
+                    (deliveryMode === "ai" && !deliveryTranslatedMessage.trim())
+                  }
                   className="primary-button rounded-full px-5 py-3 text-sm font-medium disabled:opacity-60"
                 >
                   {savingDelivery ? "保存中..." : "保存并公开给对方"}
@@ -661,10 +703,21 @@ export default function WritePage() {
               </div>
             </div>
 
+            {deliveryMode === "direct" ? (
+              <div className="mt-6 rounded-2xl border border-emerald-900/40 bg-emerald-950/20 p-5">
+                <p className="text-xs uppercase tracking-[0.2em] text-emerald-300/70">
+                  对方将看到你的原话
+                </p>
+                <p className="mt-3 text-sm leading-8 text-emerald-50">
+                  {deliveryRawMessage || "你当前还没有填写内容。"}
+                </p>
+              </div>
+            ) : null}
+
             {deliveryTranslatedMessage ? (
               <div className="mt-6 rounded-2xl border border-cyan-900/40 bg-cyan-950/20 p-5">
                 <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/70">
-                  对方会看到的版本
+                  对方会看到的 AI 转译版本
                 </p>
                 <p className="mt-3 text-sm leading-8 text-cyan-50">
                   {deliveryTranslatedMessage}
@@ -678,12 +731,23 @@ export default function WritePage() {
                   已公开
                 </p>
                 <p className="mt-3 text-sm leading-8 text-emerald-50">
-                  这条今日转递已经保存，对方在首页就能看到转译后的版本。
+                  {savedDelivery.delivery_mode === "ai"
+                    ? "这条今日转递已经保存，对方看到的是 AI 转译后的版本。"
+                    : "这条今日转递已经保存，对方看到的是你的原话。"}
                 </p>
               </div>
             ) : null}
           </SurfaceCard>
         </Reveal>
+
+        <div className="mt-6">
+          <a
+            href="/my-entries"
+            className="secondary-button inline-flex rounded-full px-5 py-3 text-sm"
+          >
+            查看我的记录与历史转递
+          </a>
+        </div>
 
         {errorMessage ? (
           <NoticeCard tone="error" className="mt-6">
