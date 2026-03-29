@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import PageContainer from "@/components/PageContainer";
 import EmptyStateCard from "@/components/EmptyStateCard";
 import SectionTitle from "@/components/SectionTitle";
@@ -19,6 +21,7 @@ type SummaryRecord = {
 };
 
 type DeliveryRecord = {
+  id: string;
   delivery_date: string;
   raw_message: string;
   translated_message: string;
@@ -51,16 +54,18 @@ export default async function MyEntriesPage() {
       summaries.map((item) => [item.summary_date, item.garden_change_text])
     );
 
-    const { data: deliveriesData } = await supabase
+    const { data: deliveriesData, error: deliveriesError } = await supabase
       .from("daily_deliveries")
-      .select("delivery_date, raw_message, translated_message")
+      .select("id, delivery_date, raw_message, translated_message")
       .eq("garden_id", garden.id)
-      .eq("user_id", user.id);
+      .eq("user_id", user.id)
+      .order("delivery_date", { ascending: false });
+
+    if (deliveriesError) {
+      throw new Error(deliveriesError.message);
+    }
 
     const deliveries = (deliveriesData ?? []) as DeliveryRecord[];
-    const deliveryMap = new Map(
-      deliveries.map((item) => [item.delivery_date, item])
-    );
 
     return (
       <PageContainer>
@@ -70,98 +75,133 @@ export default async function MyEntriesPage() {
               <SectionTitle
                 eyebrow="My Entries"
                 title="我的记录"
-                description="这里只显示你自己写下过的记录原文，以及你当天主动公开给对方的今日转递。"
+                description="这里可以回看你过去写下的记录，以及你曾公开给对方的历史转递。"
               />
             </SurfaceCard>
           </Reveal>
 
-          <div className="mt-8 space-y-4">
-            {entries.length > 0 ? (
-              entries.map((entry, index) => {
-                const settlementText = summaryMap.get(entry.entry_date);
-                const delivery = deliveryMap.get(entry.entry_date);
+          <div className="mt-8 grid gap-6 lg:grid-cols-2">
+            <div className="space-y-4">
+              <Reveal>
+                <SurfaceCard className="p-6">
+                  <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">
+                    My Daily Entries
+                  </p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+                    历史记录
+                  </h2>
+                </SurfaceCard>
+              </Reveal>
 
-                return (
-                  <Reveal key={entry.id} delayMs={index * 40}>
-                    <SurfaceCard className="p-6">
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div>
-                          <p className="text-sm text-zinc-500">{entry.entry_date}</p>
-                          <h2 className="mt-2 text-xl font-medium text-white">
-                            今日情绪：{entry.mood}
-                          </h2>
-                        </div>
+              {entries.length > 0 ? (
+                entries.map((entry, index) => {
+                  const settlementText = summaryMap.get(entry.entry_date);
 
-                        <div className="flex flex-wrap gap-2">
+                  return (
+                    <Reveal key={entry.id} delayMs={index * 40}>
+                      <SurfaceCard className="p-6">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="text-sm text-zinc-500">{entry.entry_date}</p>
+                            <h3 className="mt-2 text-lg font-medium text-white">
+                              今日情绪：{entry.mood}
+                            </h3>
+                          </div>
+
                           <span className="rounded-full border border-zinc-700 bg-zinc-900/80 px-3 py-1 text-xs uppercase tracking-[0.18em] text-zinc-300">
                             {settlementText ? "已结算" : "未结算"}
                           </span>
                         </div>
-                      </div>
 
-                      <div className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-950/80 p-5">
-                        <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-                          关键词
-                        </p>
-                        <p className="mt-3 text-sm leading-7 text-zinc-200">
-                          {entry.keywords && entry.keywords.length > 0
-                            ? entry.keywords.join("，")
-                            : "无"}
-                        </p>
-                      </div>
-
-                      <details className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/80 p-5">
-                        <summary className="cursor-pointer text-sm text-zinc-300">
-                          展开查看记录原文
-                        </summary>
-                        <p className="mt-4 whitespace-pre-wrap text-sm leading-8 text-zinc-200">
-                          {entry.content}
-                        </p>
-                      </details>
-
-                      {delivery ? (
-                        <>
-                          <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/80 p-5">
-                            <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-                              我当天写下的原始转递
-                            </p>
-                            <p className="mt-3 text-sm leading-8 text-zinc-200">
-                              {delivery.raw_message}
-                            </p>
-                          </div>
-
-                          <div className="mt-4 rounded-2xl border border-cyan-900/40 bg-cyan-950/20 p-5">
-                            <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/70">
-                              对方看到的版本
-                            </p>
-                            <p className="mt-3 text-sm leading-8 text-cyan-50">
-                              {delivery.translated_message}
-                            </p>
-                          </div>
-                        </>
-                      ) : null}
-
-                      {settlementText ? (
-                        <div className="mt-4 rounded-2xl border border-emerald-900/40 bg-emerald-950/20 p-5">
-                          <p className="text-xs uppercase tracking-[0.2em] text-emerald-300/70">
-                            当天共土变化
+                        <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+                          <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                            关键词
                           </p>
-                          <p className="mt-3 text-sm leading-8 text-emerald-50">
-                            {settlementText}
+                          <p className="mt-3 text-sm leading-7 text-zinc-200">
+                            {entry.keywords && entry.keywords.length > 0
+                              ? entry.keywords.join("，")
+                              : "无"}
                           </p>
                         </div>
-                      ) : null}
-                    </SurfaceCard>
-                  </Reveal>
-                );
-              })
-            ) : (
+
+                        <details className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+                          <summary className="cursor-pointer text-sm text-zinc-300">
+                            展开查看原文
+                          </summary>
+                          <p className="mt-4 whitespace-pre-wrap text-sm leading-8 text-zinc-200">
+                            {entry.content}
+                          </p>
+                        </details>
+
+                        {settlementText ? (
+                          <div className="mt-4 rounded-2xl border border-emerald-900/40 bg-emerald-950/20 p-4">
+                            <p className="text-xs uppercase tracking-[0.2em] text-emerald-300/70">
+                              当天共土变化
+                            </p>
+                            <p className="mt-3 text-sm leading-8 text-emerald-50">
+                              {settlementText}
+                            </p>
+                          </div>
+                        ) : null}
+                      </SurfaceCard>
+                    </Reveal>
+                  );
+                })
+              ) : (
+                <Reveal>
+                  <SurfaceCard className="p-6 text-zinc-400">
+                    你还没有写过任何历史记录。
+                  </SurfaceCard>
+                </Reveal>
+              )}
+            </div>
+
+            <div className="space-y-4">
               <Reveal>
-                <SurfaceCard className="p-6 text-zinc-400">
-                  你还没有写过任何每日记录。
+                <SurfaceCard className="p-6">
+                  <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">
+                    My Daily Deliveries
+                  </p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+                    历史转递
+                  </h2>
                 </SurfaceCard>
               </Reveal>
-            )}
+
+              {deliveries.length > 0 ? (
+                deliveries.map((delivery, index) => (
+                  <Reveal key={delivery.id} delayMs={index * 40}>
+                    <SurfaceCard className="p-6">
+                      <p className="text-sm text-zinc-500">{delivery.delivery_date}</p>
+
+                      <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+                        <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                          我当时写下的原话
+                        </p>
+                        <p className="mt-3 text-sm leading-8 text-zinc-200">
+                          {delivery.raw_message}
+                        </p>
+                      </div>
+
+                      <div className="mt-4 rounded-2xl border border-cyan-900/40 bg-cyan-950/20 p-4">
+                        <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/70">
+                          对方看到的版本
+                        </p>
+                        <p className="mt-3 text-sm leading-8 text-cyan-50">
+                          {delivery.translated_message}
+                        </p>
+                      </div>
+                    </SurfaceCard>
+                  </Reveal>
+                ))
+              ) : (
+                <Reveal>
+                  <SurfaceCard className="p-6 text-zinc-400">
+                    你还没有公开过任何历史转递。
+                  </SurfaceCard>
+                </Reveal>
+              )}
+            </div>
           </div>
         </div>
       </PageContainer>

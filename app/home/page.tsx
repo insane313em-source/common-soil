@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import PageContainer from "@/components/PageContainer";
 import EmptyStateCard from "@/components/EmptyStateCard";
 import InviteCodeCard from "@/components/InviteCodeCard";
@@ -33,7 +35,6 @@ type DeliveryRecord = {
 export default async function HomePage() {
   try {
     const { supabase, user, membership, garden } = await getCurrentGardenOrThrow();
-
     const today = new Date().toISOString().slice(0, 10);
 
     const { data: todayEntry } = await supabase
@@ -58,10 +59,10 @@ export default async function HomePage() {
 
     const members = (membersData ?? []) as MembershipRecord[];
     const memberCount = members.length;
-
     const partner = members.find((item) => item.user_id !== user.id);
 
     let partnerDelivery: DeliveryRecord | null = null;
+    let myTodayDelivery: DeliveryRecord | null = null;
 
     if (partner) {
       const { data: partnerTodayDelivery } = await supabase
@@ -78,6 +79,19 @@ export default async function HomePage() {
       }
     }
 
+    const { data: myDelivery } = await supabase
+      .from("daily_deliveries")
+      .select("translated_message")
+      .eq("garden_id", garden.id)
+      .eq("user_id", user.id)
+      .eq("delivery_date", today)
+      .eq("is_shared", true)
+      .maybeSingle();
+
+    if (myDelivery) {
+      myTodayDelivery = myDelivery as DeliveryRecord;
+    }
+
     const entry = todayEntry as DailyEntryRecord | null;
     const summary = todaySummary as DailySummaryRecord | null;
 
@@ -91,7 +105,7 @@ export default async function HomePage() {
                   <StatusPill>Common Soil Home</StatusPill>
                   <SectionTitle
                     title="我的共土"
-                    description="这里会显示你当前的共土状态、今日记录状态，以及对方今天主动转递给你的那句话。"
+                    description="这里会显示当前共土状态、今日记录状态，以及双方今天公开的转递内容。"
                   />
                 </div>
 
@@ -106,7 +120,7 @@ export default async function HomePage() {
             <Reveal delayMs={60}>
               <SurfaceCard className="mt-6 rounded-[30px] border border-cyan-900/40 bg-cyan-950/15 p-6">
                 <p className="text-xs uppercase tracking-[0.22em] text-cyan-300/70">
-                  Today Delivery
+                  Today Delivery From Partner
                 </p>
                 <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
                   对方今天转递给你的一句话
@@ -118,9 +132,25 @@ export default async function HomePage() {
             </Reveal>
           ) : null}
 
+          {myTodayDelivery ? (
+            <Reveal delayMs={80}>
+              <SurfaceCard className="mt-6 rounded-[30px] border border-emerald-900/40 bg-emerald-950/15 p-6">
+                <p className="text-xs uppercase tracking-[0.22em] text-emerald-300/70">
+                  My Delivery Today
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+                  我今天公开给对方的一句话
+                </h2>
+                <p className="mt-5 text-[16px] leading-9 text-emerald-50">
+                  {myTodayDelivery.translated_message}
+                </p>
+              </SurfaceCard>
+            </Reveal>
+          ) : null}
+
           <div className="mt-8 grid gap-6 lg:grid-cols-[2fr_1fr]">
             <div className="space-y-6">
-              <Reveal delayMs={80}>
+              <Reveal delayMs={100}>
                 <SurfaceCard className="p-6">
                   <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">
                     当前共土
@@ -220,34 +250,19 @@ export default async function HomePage() {
                     快捷入口
                   </p>
                   <div className="mt-5 flex flex-wrap gap-3">
-                    <a
-                      href="/garden"
-                      className="primary-button rounded-full px-5 py-3 text-sm font-medium"
-                    >
+                    <a href="/garden" className="primary-button rounded-full px-5 py-3 text-sm font-medium">
                       查看共土
                     </a>
-                    <a
-                      href="/timeline"
-                      className="secondary-button rounded-full px-5 py-3 text-sm"
-                    >
+                    <a href="/timeline" className="secondary-button rounded-full px-5 py-3 text-sm">
                       查看时间线
                     </a>
-                    <a
-                      href="/write"
-                      className="secondary-button rounded-full px-5 py-3 text-sm"
-                    >
+                    <a href="/write" className="secondary-button rounded-full px-5 py-3 text-sm">
                       写记录 / 今日转递
                     </a>
-                    <a
-                      href="/my-entries"
-                      className="secondary-button rounded-full px-5 py-3 text-sm"
-                    >
+                    <a href="/my-entries" className="secondary-button rounded-full px-5 py-3 text-sm">
                       我的记录
                     </a>
-                    <a
-                      href="/settle"
-                      className="secondary-button rounded-full px-5 py-3 text-sm"
-                    >
+                    <a href="/settle" className="secondary-button rounded-full px-5 py-3 text-sm">
                       去结算
                     </a>
                   </div>
@@ -279,7 +294,8 @@ export default async function HomePage() {
                     <p>加入共土：已完成</p>
                     <p>今日记录：{entry ? "已完成" : "未完成"}</p>
                     <p>今日结算：{summary ? "已完成" : "未完成"}</p>
-                    <p>今日转递：{partnerDelivery ? "已收到对方转递" : "暂无"}</p>
+                    <p>我今日转递：{myTodayDelivery ? "已公开" : "暂无"}</p>
+                    <p>收到对方转递：{partnerDelivery ? "已收到" : "暂无"}</p>
                   </div>
                 </SurfaceCard>
               </Reveal>
