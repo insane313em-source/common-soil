@@ -25,6 +25,7 @@ type TranslationRecord = {
   entry_id: string;
   raw_message: string;
   translated_message: string;
+  is_shared: boolean;
 };
 
 const moodOptions = [
@@ -55,14 +56,14 @@ export default function WritePage() {
   const [todayEntry, setTodayEntry] = useState<EntryRecord | null>(null);
   const [editing, setEditing] = useState(false);
 
-  const [rawMessage, setRawMessage] = useState("");
-  const [translatedMessage, setTranslatedMessage] = useState("");
-  const [savedTranslation, setSavedTranslation] = useState<TranslationRecord | null>(null);
+  const [deliveryRawMessage, setDeliveryRawMessage] = useState("");
+  const [deliveryTranslatedMessage, setDeliveryTranslatedMessage] = useState("");
+  const [savedDelivery, setSavedDelivery] = useState<TranslationRecord | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [translating, setTranslating] = useState(false);
-  const [savingTranslation, setSavingTranslation] = useState(false);
+  const [savingDelivery, setSavingDelivery] = useState(false);
 
   const [errorMessage, setErrorMessage] = useState("");
   const [message, setMessage] = useState("");
@@ -119,9 +120,10 @@ export default function WritePage() {
           .maybeSingle();
 
         if (translationData) {
-          setSavedTranslation(translationData as TranslationRecord);
-          setRawMessage((translationData as TranslationRecord).raw_message);
-          setTranslatedMessage((translationData as TranslationRecord).translated_message);
+          const delivery = translationData as TranslationRecord;
+          setSavedDelivery(delivery);
+          setDeliveryRawMessage(delivery.raw_message);
+          setDeliveryTranslatedMessage(delivery.translated_message);
         }
       }
     }
@@ -257,9 +259,9 @@ export default function WritePage() {
       setMood("平静");
       setContent("");
       setKeywordsInput("");
-      setRawMessage("");
-      setTranslatedMessage("");
-      setSavedTranslation(null);
+      setDeliveryRawMessage("");
+      setDeliveryTranslatedMessage("");
+      setSavedDelivery(null);
       setEditing(false);
       setMessage("今天的记录已删除，现在可以重新填写。");
     } catch (error) {
@@ -271,12 +273,12 @@ export default function WritePage() {
     }
   }
 
-  async function handleTranslate() {
+  async function handleTranslateDelivery() {
     setErrorMessage("");
     setMessage("");
 
-    if (!rawMessage.trim()) {
-      setErrorMessage("请先写下今天想对对方说的话");
+    if (!deliveryRawMessage.trim()) {
+      setErrorMessage("请先写下今天想让对方看到的话");
       return;
     }
 
@@ -289,7 +291,7 @@ export default function WritePage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          rawMessage,
+          rawMessage: deliveryRawMessage,
           mood,
           entryContent: content,
         }),
@@ -301,8 +303,8 @@ export default function WritePage() {
         throw new Error(data.error || "转译失败");
       }
 
-      setTranslatedMessage(data.translatedMessage);
-      setMessage("已生成一版更柔和的表达。");
+      setDeliveryTranslatedMessage(data.translatedMessage);
+      setMessage("已生成一版更柔和的转递内容。");
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "转译时发生未知错误"
@@ -312,14 +314,14 @@ export default function WritePage() {
     }
   }
 
-  async function handleSaveTranslation() {
+  async function handleSaveDelivery() {
     if (accessState.status !== "ready" || !todayEntry) {
-      setErrorMessage("请先保存今天的记录，再保存转译内容");
+      setErrorMessage("请先保存今天的记录，再保存今日转递");
       return;
     }
 
-    if (!rawMessage.trim() || !translatedMessage.trim()) {
-      setErrorMessage("请先生成转译内容");
+    if (!deliveryRawMessage.trim() || !deliveryTranslatedMessage.trim()) {
+      setErrorMessage("请先生成转译后的内容");
       return;
     }
 
@@ -327,22 +329,23 @@ export default function WritePage() {
     setMessage("");
 
     try {
-      setSavingTranslation(true);
+      setSavingDelivery(true);
 
-      if (savedTranslation) {
+      if (savedDelivery) {
         const { data, error } = await supabase
           .from("entry_translations")
           .update({
-            raw_message: rawMessage.trim(),
-            translated_message: translatedMessage.trim(),
+            raw_message: deliveryRawMessage.trim(),
+            translated_message: deliveryTranslatedMessage.trim(),
+            is_shared: true,
             updated_at: new Date().toISOString(),
           })
-          .eq("id", savedTranslation.id)
+          .eq("id", savedDelivery.id)
           .select()
           .single();
 
         if (error) throw new Error(error.message);
-        setSavedTranslation(data as TranslationRecord);
+        setSavedDelivery(data as TranslationRecord);
       } else {
         const { data, error } = await supabase
           .from("entry_translations")
@@ -350,24 +353,24 @@ export default function WritePage() {
             garden_id: accessState.gardenId,
             entry_id: todayEntry.id,
             user_id: accessState.userId,
-            raw_message: rawMessage.trim(),
-            translated_message: translatedMessage.trim(),
+            raw_message: deliveryRawMessage.trim(),
+            translated_message: deliveryTranslatedMessage.trim(),
             is_shared: true,
           })
           .select()
           .single();
 
         if (error) throw new Error(error.message);
-        setSavedTranslation(data as TranslationRecord);
+        setSavedDelivery(data as TranslationRecord);
       }
 
-      setMessage("转译内容已保存。");
+      setMessage("今日转递已保存并会展示给对方。");
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "保存转译内容时发生未知错误"
+        error instanceof Error ? error.message : "保存今日转递时发生未知错误"
       );
     } finally {
-      setSavingTranslation(false);
+      setSavingDelivery(false);
     }
   }
 
@@ -440,7 +443,7 @@ export default function WritePage() {
             <SectionTitle
               eyebrow="Daily Entry"
               title="今日记录"
-              description="写下一点今天的情绪、近况和没有说出口的话。对方不会直接看见原文。"
+              description="记录仍然只属于你自己；今日转递则是你主动想让对方看到的一段话。"
             />
           </SurfaceCard>
         </Reveal>
@@ -610,31 +613,31 @@ export default function WritePage() {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">
-                  Gentle Translation
+                  Today Delivery
                 </p>
                 <h3 className="mt-2 text-2xl font-semibold tracking-tight text-white">
-                  想说的话，换一种方式说
+                  今日转递
                 </h3>
                 <p className="mt-3 max-w-2xl text-sm leading-7 text-zinc-400">
-                  你可以把今天想对对方说的话写下来，AI 会帮你转成更柔和、也更容易被接住的表达。
+                  这里写的是你今天主动想让对方看到的话。对方不会看到你的原文，只会看到 AI 转译后的版本。
                 </p>
               </div>
             </div>
 
             <div className="mt-6">
-              <label className="mb-2 block text-sm text-zinc-300">原始想法</label>
+              <label className="mb-2 block text-sm text-zinc-300">你想让对方看到的话</label>
               <textarea
                 rows={5}
-                value={rawMessage}
-                onChange={(e) => setRawMessage(e.target.value)}
-                placeholder="例如：我今天其实有点失落，只是没太说出来……"
+                value={deliveryRawMessage}
+                onChange={(e) => setDeliveryRawMessage(e.target.value)}
+                placeholder="例如：今天其实有点想被你多问一句，只是我没有主动说出来……"
                 className="input-shell w-full rounded-2xl px-4 py-3 placeholder:text-zinc-500"
               />
 
               <div className="mt-4 flex flex-wrap gap-3">
                 <button
                   type="button"
-                  onClick={handleTranslate}
+                  onClick={handleTranslateDelivery}
                   disabled={translating}
                   className="secondary-button rounded-full px-5 py-3 text-sm disabled:opacity-60"
                 >
@@ -643,33 +646,33 @@ export default function WritePage() {
 
                 <button
                   type="button"
-                  onClick={handleSaveTranslation}
-                  disabled={savingTranslation || !todayEntry || !translatedMessage}
+                  onClick={handleSaveDelivery}
+                  disabled={savingDelivery || !todayEntry || !deliveryTranslatedMessage}
                   className="primary-button rounded-full px-5 py-3 text-sm font-medium disabled:opacity-60"
                 >
-                  {savingTranslation ? "保存中..." : "保存转译"}
+                  {savingDelivery ? "保存中..." : "保存并公开给对方"}
                 </button>
               </div>
             </div>
 
-            {translatedMessage ? (
+            {deliveryTranslatedMessage ? (
               <div className="mt-6 rounded-2xl border border-cyan-900/40 bg-cyan-950/20 p-5">
                 <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/70">
-                  转译结果
+                  对方会看到的版本
                 </p>
                 <p className="mt-3 text-sm leading-8 text-cyan-50">
-                  {translatedMessage}
+                  {deliveryTranslatedMessage}
                 </p>
               </div>
             ) : null}
 
-            {savedTranslation ? (
+            {savedDelivery ? (
               <div className="mt-4 rounded-2xl border border-emerald-900/40 bg-emerald-950/20 p-5">
                 <p className="text-xs uppercase tracking-[0.2em] text-emerald-300/70">
-                  已保存
+                  已公开
                 </p>
                 <p className="mt-3 text-sm leading-8 text-emerald-50">
-                  这段转译内容已经保存，可在“我的记录”里回看。
+                  这条今日转递已经保存，对方在首页就能看到转译后的版本。
                 </p>
               </div>
             ) : null}

@@ -26,6 +26,10 @@ type DailySummaryRecord = {
   garden_change_text: string | null;
 };
 
+type TranslationRecord = {
+  translated_message: string;
+};
+
 export default async function HomePage() {
   try {
     const { supabase, user, membership, garden } = await getCurrentGardenOrThrow();
@@ -55,6 +59,34 @@ export default async function HomePage() {
     const members = (membersData ?? []) as MembershipRecord[];
     const memberCount = members.length;
 
+    const partner = members.find((item) => item.user_id !== user.id);
+
+    let partnerDelivery: TranslationRecord | null = null;
+
+    if (partner) {
+      const { data: partnerTodayEntry } = await supabase
+        .from("daily_entries")
+        .select("id")
+        .eq("garden_id", garden.id)
+        .eq("user_id", partner.user_id)
+        .eq("entry_date", today)
+        .maybeSingle();
+
+      if (partnerTodayEntry) {
+        const { data: partnerTranslation } = await supabase
+          .from("entry_translations")
+          .select("translated_message")
+          .eq("entry_id", partnerTodayEntry.id)
+          .eq("user_id", partner.user_id)
+          .eq("is_shared", true)
+          .maybeSingle();
+
+        if (partnerTranslation) {
+          partnerDelivery = partnerTranslation as TranslationRecord;
+        }
+      }
+    }
+
     const entry = todayEntry as DailyEntryRecord | null;
     const summary = todaySummary as DailySummaryRecord | null;
 
@@ -68,7 +100,7 @@ export default async function HomePage() {
                   <StatusPill>Common Soil Home</StatusPill>
                   <SectionTitle
                     title="我的共土"
-                    description="这里会显示你当前的共土状态、今日记录状态，以及通往各功能页的快捷入口。"
+                    description="这里会显示你当前的共土状态、今日记录状态，以及对方今天主动转递给你的那句话。"
                   />
                 </div>
 
@@ -78,6 +110,22 @@ export default async function HomePage() {
               </div>
             </SurfaceCard>
           </Reveal>
+
+          {partnerDelivery ? (
+            <Reveal delayMs={60}>
+              <SurfaceCard className="mt-6 rounded-[30px] border border-cyan-900/40 bg-cyan-950/15 p-6">
+                <p className="text-xs uppercase tracking-[0.22em] text-cyan-300/70">
+                  Today Delivery
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+                  对方今天转递给你的一句话
+                </h2>
+                <p className="mt-5 text-[16px] leading-9 text-cyan-50">
+                  {partnerDelivery.translated_message}
+                </p>
+              </SurfaceCard>
+            </Reveal>
+          ) : null}
 
           <div className="mt-8 grid gap-6 lg:grid-cols-[2fr_1fr]">
             <div className="space-y-6">
@@ -197,19 +245,19 @@ export default async function HomePage() {
                       href="/write"
                       className="secondary-button rounded-full px-5 py-3 text-sm"
                     >
-                      写记录
+                      写记录 / 今日转递
+                    </a>
+                    <a
+                      href="/my-entries"
+                      className="secondary-button rounded-full px-5 py-3 text-sm"
+                    >
+                      我的记录
                     </a>
                     <a
                       href="/settle"
                       className="secondary-button rounded-full px-5 py-3 text-sm"
                     >
                       去结算
-                    </a>
-                    <a
-                      href="/settings"
-                      className="secondary-button rounded-full px-5 py-3 text-sm"
-                    >
-                      共土设置
                     </a>
                   </div>
                 </SurfaceCard>
@@ -240,6 +288,7 @@ export default async function HomePage() {
                     <p>加入共土：已完成</p>
                     <p>今日记录：{entry ? "已完成" : "未完成"}</p>
                     <p>今日结算：{summary ? "已完成" : "未完成"}</p>
+                    <p>今日转递：{partnerDelivery ? "已收到对方转递" : "暂无"}</p>
                   </div>
                 </SurfaceCard>
               </Reveal>

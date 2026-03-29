@@ -20,6 +20,7 @@ type SummaryRecord = {
 
 type TranslationRecord = {
   entry_id: string;
+  raw_message: string;
   translated_message: string;
 };
 
@@ -52,13 +53,13 @@ export default async function MyEntriesPage() {
 
     const { data: translationsData } = await supabase
       .from("entry_translations")
-      .select("entry_id, translated_message")
+      .select("entry_id, raw_message, translated_message")
       .eq("garden_id", garden.id)
       .eq("user_id", user.id);
 
     const translations = (translationsData ?? []) as TranslationRecord[];
     const translationMap = new Map(
-      translations.map((item) => [item.entry_id, item.translated_message])
+      translations.map((item) => [item.entry_id, item])
     );
 
     return (
@@ -69,7 +70,7 @@ export default async function MyEntriesPage() {
               <SectionTitle
                 eyebrow="My Entries"
                 title="我的记录"
-                description="这里保存你写下过的每日记录，只显示你自己的原文，以及当天是否已经完成结算。"
+                description="这里只显示你自己写下过的记录原文，以及你当天主动公开给对方的今日转递。"
               />
             </SurfaceCard>
           </Reveal>
@@ -78,7 +79,7 @@ export default async function MyEntriesPage() {
             {entries.length > 0 ? (
               entries.map((entry, index) => {
                 const settlementText = summaryMap.get(entry.entry_date);
-                const translatedMessage = translationMap.get(entry.id);
+                const translation = translationMap.get(entry.id);
 
                 return (
                   <Reveal key={entry.id} delayMs={index * 40}>
@@ -111,22 +112,33 @@ export default async function MyEntriesPage() {
 
                       <details className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/80 p-5">
                         <summary className="cursor-pointer text-sm text-zinc-300">
-                          展开查看原文
+                          展开查看记录原文
                         </summary>
                         <p className="mt-4 whitespace-pre-wrap text-sm leading-8 text-zinc-200">
                           {entry.content}
                         </p>
                       </details>
 
-                      {translatedMessage ? (
-                        <div className="mt-4 rounded-2xl border border-cyan-900/40 bg-cyan-950/20 p-5">
-                          <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/70">
-                            今日转译
-                          </p>
-                          <p className="mt-3 text-sm leading-8 text-cyan-50">
-                            {translatedMessage}
-                          </p>
-                        </div>
+                      {translation ? (
+                        <>
+                          <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/80 p-5">
+                            <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                              我当天写下的原始转递
+                            </p>
+                            <p className="mt-3 text-sm leading-8 text-zinc-200">
+                              {translation.raw_message}
+                            </p>
+                          </div>
+
+                          <div className="mt-4 rounded-2xl border border-cyan-900/40 bg-cyan-950/20 p-5">
+                            <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/70">
+                              对方看到的版本
+                            </p>
+                            <p className="mt-3 text-sm leading-8 text-cyan-50">
+                              {translation.translated_message}
+                            </p>
+                          </div>
+                        </>
                       ) : null}
 
                       {settlementText ? (
