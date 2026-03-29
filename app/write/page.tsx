@@ -297,7 +297,16 @@ export default function WritePage() {
         }),
       });
 
-      const data = await response.json();
+      const rawText = await response.text();
+
+      let data: any;
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        throw new Error(
+          `转译接口没有返回 JSON。状态码：${response.status}。返回内容前 120 字：${rawText.slice(0, 120)}`
+        );
+      }
 
       if (!response.ok) {
         throw new Error(data.error || "转译失败");
